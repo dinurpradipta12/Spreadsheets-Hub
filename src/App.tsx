@@ -1834,16 +1834,15 @@ export default function App() {
   };
 
   const handleEnterWorkspace = async (namePrefix: string, password: string): Promise<boolean> => {
-    // Cari workspace yang owner_name-nya mulai dengan prefix (case insensitive)
-    const prefix = namePrefix.toLowerCase();
-    const { data, error: err } = await supabase.from('workspaces').select('*').order('created_at', { ascending: false });
-    if (err) return false;
-    // Filter: owner_name mulai dengan prefix
-    const matches = (data as Workspace[]).filter(ws => ws.owner_name.toLowerCase().startsWith(prefix));
-    if (matches.length === 0) return false;
-    // Jika ada beberapa, ambil yang paling baru
-    const ws = matches[0];
-    if (ws.password && ws.password !== password) return false;
+    // Cari workspace yang owner_name-nya cocok (case insensitive)
+    const { data, error: err } = await supabase
+      .from('workspaces')
+      .select('*')
+      .ilike('owner_name', namePrefix.trim())
+      .order('created_at', { ascending: false });
+    if (err || !data || data.length === 0) return false;
+    const ws = (data as Workspace[]).find(w => !w.password || w.password === password);
+    if (!ws) return false;
     if (!ws.is_active) { setWorkspace(ws); setWsLoading(false); setWorkspaceChecked(true); return true; }
     setWorkspace(ws);
     saveWorkspaceToStorage(ws.slug, ws.owner_name);
