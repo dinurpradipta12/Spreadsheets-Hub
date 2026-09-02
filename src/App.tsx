@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from './lib/supabase';
 import type { ContentPlanSheet, SheetFormData, ToastMessage, Workspace, TrialLink, AppSetting } from './types';
-import { PLATFORMS, WHATSAPP_NUMBER, DEFAULT_SETTINGS } from './types';
+import { PLATFORMS, WHATSAPP_NUMBER, DEFAULT_SETTINGS, DEVELOPER_SECRET } from './types';
 import logoImg from './sheets.png';
 
 // ─── Countdown Hook ────────────────────────────────────────────────
@@ -89,7 +89,7 @@ function getTrialCodeFromUrl(): string | null {
 }
 
 function getDevMode(): boolean {
-  // Cek localStorage untuk dev mode
+  // Cek localStorage untuk dev mode (hanya aktif jika sudah login)
   try {
     const saved = localStorage.getItem('spreadsheets-hub-workspace');
     if (saved) {
@@ -97,8 +97,7 @@ function getDevMode(): boolean {
       if (parsed.ownerName === 'Ar4925') return true;
     }
   } catch {}
-  // Fallback ke URL
-  return window.location.hash === '#/dev' || new URLSearchParams(window.location.search).get('dev') === '1';
+  return false;
 }
 
 function saveWorkspaceToStorage(slug: string, ownerName: string) {
@@ -461,7 +460,15 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { setError('Nama workspace wajib diisi.'); return; }
-    if (name.trim() === 'Ar4925') { window.location.href = '/?dev=1'; return; }
+    if (name.trim() === 'Ar4925') {
+      if (password.trim() && password.trim() !== DEVELOPER_SECRET && password.trim() !== 'Ar4925') {
+        setError('Password developer salah.');
+        return;
+      }
+      saveWorkspaceToStorage('__dev__', 'Ar4925');
+      window.location.href = '/';
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -477,7 +484,15 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
     e.preventDefault();
     if (!namePrefix.trim()) { setError('Nama workspace wajib diisi.'); return; }
     if (!password.trim()) { setError('Password wajib diisi.'); return; }
-    if (namePrefix.trim() === 'Ar4925') { window.location.href = '/?dev=1'; return; }
+    if (namePrefix.trim() === 'Ar4925') {
+      if (password.trim() !== DEVELOPER_SECRET && password.trim() !== 'Ar4925') {
+        setError('Password developer salah.');
+        return;
+      }
+      saveWorkspaceToStorage('__dev__', 'Ar4925');
+      window.location.href = '/';
+      return;
+    }
     setLoading(true);
     setError('');
     const ok = await onEnterWorkspace(namePrefix.trim(), password.trim());
@@ -1913,7 +1928,7 @@ export default function App() {
 
   // Developer panel
   if (devMode) {
-    return <DeveloperPanel onExit={() => { window.location.hash = ''; window.location.search = ''; }} />;
+    return <DeveloperPanel onExit={() => { clearWorkspaceFromStorage(); window.location.href = '/'; }} />;
   }
 
   // Revoked workspace — tapi cek dulu apakah sudah diaktifkan
