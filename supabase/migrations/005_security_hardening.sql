@@ -2,9 +2,12 @@
 -- Migration 005: Database Security Hardening & RLS Protection
 -- ═══════════════════════════════════════════════════════
 
--- 1. Cabut policy serba boleh (permissive policies) pada tabel workspaces
+-- 1. Cabut policy lama pada tabel workspaces
 DROP POLICY IF EXISTS "Developer can update workspaces" ON public.workspaces;
 DROP POLICY IF EXISTS "Developer can delete workspaces" ON public.workspaces;
+DROP POLICY IF EXISTS "Public read workspaces" ON public.workspaces;
+DROP POLICY IF EXISTS "Public insert workspace" ON public.workspaces;
+DROP POLICY IF EXISTS "Restricted workspace update" ON public.workspaces;
 
 -- Policy SELECT: Izinkan publik membaca workspace
 CREATE POLICY "Public read workspaces"
@@ -18,7 +21,7 @@ CREATE POLICY "Public insert workspace"
   FOR INSERT
   WITH CHECK (true);
 
--- Policy UPDATE: Cegah pengubahan status sensitif (has_paid, is_active, is_trial) secara ilegal via REST Client
+-- Policy UPDATE: Restricted workspace update
 CREATE POLICY "Restricted workspace update"
   ON public.workspaces
   FOR UPDATE
@@ -28,6 +31,7 @@ CREATE POLICY "Restricted workspace update"
 -- 2. Amankan tabel app_settings
 DROP POLICY IF EXISTS "Anyone can update app_settings" ON public.app_settings;
 DROP POLICY IF EXISTS "Anyone can insert app_settings" ON public.app_settings;
+DROP POLICY IF EXISTS "Public read app_settings" ON public.app_settings;
 
 CREATE POLICY "Public read app_settings"
   ON public.app_settings
@@ -36,6 +40,7 @@ CREATE POLICY "Public read app_settings"
 
 -- 3. Amankan tabel trial_links
 DROP POLICY IF EXISTS "Anyone can create trial links" ON public.trial_links;
+DROP POLICY IF EXISTS "Public read trial_links" ON public.trial_links;
 
 CREATE POLICY "Public read trial_links"
   ON public.trial_links
@@ -48,7 +53,7 @@ CREATE OR REPLACE FUNCTION public.admin_update_workspace_status(
   p_is_active BOOLEAN,
   p_has_paid BOOLEAN
 )
-RETURNS VOID AS $$
+RETURNS VOID AS $func$
 BEGIN
   UPDATE public.workspaces
   SET 
@@ -56,7 +61,7 @@ BEGIN
     has_paid = p_has_paid
   WHERE id = p_workspace_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$func$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 5. Stored Procedure untuk memverifikasi autentikasi developer di tingkat Database (tanpa bocor ke JS Bundle)
 INSERT INTO public.app_settings (key, value) VALUES
@@ -65,7 +70,7 @@ INSERT INTO public.app_settings (key, value) VALUES
 ON CONFLICT (key) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION public.verify_developer_access(p_name TEXT, p_password TEXT)
-RETURNS BOOLEAN AS $$
+RETURNS BOOLEAN AS $func$
 DECLARE
   v_name TEXT;
   v_pass TEXT;
@@ -79,4 +84,4 @@ BEGIN
 
   RETURN lower(trim(p_name)) = lower(trim(v_name)) AND (trim(p_password) = trim(v_pass) OR lower(trim(p_password)) = lower(trim(v_name)));
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$func$ LANGUAGE plpgsql SECURITY DEFINER;
