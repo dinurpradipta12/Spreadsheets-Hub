@@ -692,7 +692,7 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
       for (const ws of data as Workspace[]) {
         const endsAt = ws.trial_ends_at;
         if (endsAt && new Date(endsAt) < now) {
-          await supabase.from('workspaces').update({ is_active: false, trial_expired: true }).eq('id', ws.id);
+          await supabase.rpc('mark_trial_expired', { p_workspace_id: ws.id });
         }
       }
     };
@@ -791,9 +791,7 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
     setActionLoading(tl.id);
 
     // Hapus referensi trial_link_id di workspace yang pakai link ini
-    await supabase.from('workspaces')
-      .update({ trial_link_id: null, trial_expired: true, is_active: false })
-      .eq('trial_link_id', tl.id);
+    await supabase.rpc('revoke_trial_link_workspaces', { p_trial_link_id: tl.id });
 
     const { error: err } = await supabase.from('trial_links').delete().eq('id', tl.id);
     setActionLoading(null);
@@ -807,15 +805,7 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
 
   const activateTrialUser = async (ws: Workspace) => {
     setActionLoading(ws.id);
-    const { error: err } = await supabase.from('workspaces').update({
-      is_trial: false,
-      trial_expired: false,
-      is_active: true,
-      has_paid: true,
-      revoked_at: null,
-      revoked_by: null,
-      revoke_reason: null,
-    }).eq('id', ws.id);
+    const { error: err } = await supabase.rpc('activate_trial_user', { p_workspace_id: ws.id });
     setActionLoading(null);
     if (err) { setToast({ type: 'error', msg: err.message }); }
     else { setToast({ type: 'success', msg: `Workspace "${ws.owner_name}" berhasil diaktifkan. Penangguhan dicabut.` }); fetchWorkspaces(); }
@@ -823,7 +813,7 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
 
   const toggleActive = async (ws: Workspace) => {
     setActionLoading(ws.id);
-    const { error: err } = await supabase.from('workspaces').update({ is_active: !ws.is_active }).eq('id', ws.id);
+    const { error: err } = await supabase.rpc('toggle_workspace_active', { p_workspace_id: ws.id });
     setActionLoading(null);
     if (err) { setToast({ type: 'error', msg: err.message }); }
     else { setToast({ type: 'success', msg: `Workspace "${ws.owner_name}" ${ws.is_active ? 'dinonaktifkan' : 'diaktifkan'}.` }); fetchWorkspaces(); }
@@ -831,7 +821,7 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
 
   const togglePaid = async (ws: Workspace) => {
     setActionLoading(ws.id);
-    const { error: err } = await supabase.from('workspaces').update({ has_paid: !ws.has_paid }).eq('id', ws.id);
+    const { error: err } = await supabase.rpc('toggle_workspace_paid', { p_workspace_id: ws.id });
     setActionLoading(null);
     if (err) { setToast({ type: 'error', msg: err.message }); }
     else { setToast({ type: 'success', msg: `Status payment "${ws.owner_name}" diperbarui.` }); fetchWorkspaces(); }
@@ -840,9 +830,7 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
   const deleteWorkspace = async (ws: Workspace) => {
     if (!confirm(`Hapus workspace "${ws.owner_name}" (${ws.slug})? Semua data sheet akan terhapus.`)) return;
     setActionLoading(ws.id);
-    // Hapus sheets dulu
-    await supabase.from('content_plan_sheets').delete().eq('workspace_id', ws.id);
-    const { error: err } = await supabase.from('workspaces').delete().eq('id', ws.id);
+    const { error: err } = await supabase.rpc('delete_workspace', { p_workspace_id: ws.id });
     setActionLoading(null);
     if (err) { setToast({ type: 'error', msg: err.message }); }
     else { setToast({ type: 'success', msg: `Workspace "${ws.owner_name}" dihapus.` }); fetchWorkspaces(); }
@@ -1721,7 +1709,7 @@ export default function App() {
           // Trial expired — update workspace flag dan tampilkan locked page
           setTrialExpired(true);
           setTrialExpiresAt(ws.trial_ends_at);
-          await supabase.from('workspaces').update({ trial_expired: true }).eq('id', ws.id);
+          await supabase.rpc('mark_trial_expired', { p_workspace_id: ws.id });
           setWorkspace(ws);
           setWsLoading(false);
           setWorkspaceChecked(true);
@@ -1738,7 +1726,7 @@ export default function App() {
           if (!tl.is_active || expiresAt < now) {
             setTrialExpired(true);
             setTrialExpiresAt(tl.expires_at);
-            await supabase.from('workspaces').update({ trial_expired: true }).eq('id', ws.id);
+            await supabase.rpc('mark_trial_expired', { p_workspace_id: ws.id });
             setWorkspace(ws);
             setWsLoading(false);
             setWorkspaceChecked(true);
