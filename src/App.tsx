@@ -68,6 +68,8 @@ function cn(...parts: (string | false | undefined | null)[]): string {
   return parts.filter(Boolean).join(' ');
 }
 
+const PUBLIC_WORKSPACE_FIELDS = 'id, slug, owner_name, created_at, is_active, has_paid, is_trial, trial_link_id, trial_started_at, trial_ends_at, trial_expired, revoked_at, revoked_by, revoke_reason';
+
 function getWorkspaceSlug(): string | null {
   // Hanya cek localStorage (persist per browser)
   try {
@@ -684,7 +686,7 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
   // Auto-sync expired trials
   useEffect(() => {
     const sync = async () => {
-      const { data } = await supabase.from('workspaces').select('*').eq('is_trial', true).eq('is_active', true);
+      const { data } = await supabase.from('workspaces').select(PUBLIC_WORKSPACE_FIELDS).eq('is_trial', true).eq('is_active', true);
       if (!data) return;
       const now = new Date();
       for (const ws of data as Workspace[]) {
@@ -709,7 +711,7 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
   const fetchWorkspaces = async () => {
     setLoading(true);
     setError(null);
-    const { data, error: err } = await supabase.from('workspaces').select('*').order('created_at', { ascending: false });
+    const { data, error: err } = await supabase.from('workspaces').select(PUBLIC_WORKSPACE_FIELDS).order('created_at', { ascending: false });
     if (err) { setError(err.message); } else { setWorkspaces(data as Workspace[]); }
     setLoading(false);
   };
@@ -1272,7 +1274,7 @@ function DevSheetsHub({ onExit, onBackToAdmin }: { onExit: () => void; onBackToA
   // Get or create dev workspace
   useEffect(() => {
     (async () => {
-      const { data, error: err } = await supabase.from('workspaces').select('*').eq('slug', 'dev-admin').single();
+      const { data, error: err } = await supabase.from('workspaces').select(PUBLIC_WORKSPACE_FIELDS).eq('slug', 'dev-admin').single();
       if (!err && data) {
         const ws = data as Workspace;
         setWorkspace(ws);
@@ -1574,7 +1576,7 @@ function RevokedPage({ workspace }: { workspace: Workspace }) {
   // Auto-refresh — cek apakah workspace sudah diaktifkan
   useEffect(() => {
     const check = async () => {
-      const { data } = await supabase.from('workspaces').select('*').eq('id', workspace.id).single();
+      const { data } = await supabase.from('workspaces').select(PUBLIC_WORKSPACE_FIELDS).eq('id', workspace.id).single();
       if (data && (data as Workspace).is_active) {
         window.location.reload();
       }
@@ -1707,7 +1709,7 @@ export default function App() {
 
     (async () => {
       setWsLoading(true);
-      const { data, error: err } = await supabase.from('workspaces').select('*').eq('slug', slug).single();
+      const { data, error: err } = await supabase.from('workspaces').select(PUBLIC_WORKSPACE_FIELDS).eq('slug', slug).single();
       if (err || !data) { setWsError('Workspace tidak ditemukan.'); setWsLoading(false); setWorkspaceChecked(true); return; }
       const ws = data as Workspace;
 
@@ -1835,22 +1837,20 @@ export default function App() {
     }
     if (password) insertData.password = password;
 
-    const { data: ws, error: insertErr } = await supabase.from('workspaces').insert(insertData).select().single();
+    const { data: ws, error: insertErr } = await supabase.from('workspaces').insert(insertData).select(PUBLIC_WORKSPACE_FIELDS).single();
     if (insertErr || !ws) throw new Error(insertErr?.message || 'Gagal membuat workspace');
     saveWorkspaceToStorage(ws.slug, name);
     window.location.href = `/?w=${ws.slug}`;
   };
 
   const handleEnterWorkspace = async (namePrefix: string, password: string): Promise<boolean> => {
-    // Cari workspace yang owner_name-nya cocok (case insensitive)
-    const { data, error: err } = await supabase
-      .from('workspaces')
-      .select('*')
-      .ilike('owner_name', namePrefix.trim())
-      .order('created_at', { ascending: false });
-    if (err || !data || data.length === 0) return false;
-    const ws = (data as Workspace[]).find(w => !w.password || w.password === password);
-    if (!ws) return false;
+    // Autentikasi workspace via Database RPC (tanpa membocorkan kolom password ke Network JSON response)
+    const { data, error: err } = await supabase.rpc('authenticate_workspace', {
+      p_name: namePrefix.trim(),
+      p_password: password.trim()
+    });
+    if (err || !data || (data as any[]).length === 0) return false;
+    const ws = (data as Workspace[])[0];
     if (!ws.is_active) { setWorkspace(ws); setWsLoading(false); setWorkspaceChecked(true); return true; }
     setWorkspace(ws);
     saveWorkspaceToStorage(ws.slug, ws.owner_name);
