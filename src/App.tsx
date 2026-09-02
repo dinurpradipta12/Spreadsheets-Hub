@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from './lib/supabase';
 import type { ContentPlanSheet, SheetFormData, ToastMessage, Workspace, TrialLink, AppSetting } from './types';
-import { PLATFORMS, WHATSAPP_NUMBER, DEFAULT_SETTINGS, DEVELOPER_SECRET } from './types';
+import { PLATFORMS, WHATSAPP_NUMBER, DEFAULT_SETTINGS } from './types';
 import logoImg from './sheets.png';
 
 // ─── Countdown Hook ────────────────────────────────────────────────
@@ -75,7 +75,7 @@ function getWorkspaceSlug(): string | null {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed.slug && parsed.ts && Date.now() - parsed.ts < 30 * 24 * 60 * 60 * 1000) {
-        if (parsed.ownerName === 'Ar4925') return '__dev__';
+        if (parsed.isDev) return '__dev__';
         return parsed.slug;
       }
     }
@@ -94,15 +94,15 @@ function getDevMode(): boolean {
     const saved = localStorage.getItem('spreadsheets-hub-workspace');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (parsed.ownerName === 'Ar4925') return true;
+      if (parsed.isDev === true) return true;
     }
   } catch {}
   return false;
 }
 
-function saveWorkspaceToStorage(slug: string, ownerName: string) {
+function saveWorkspaceToStorage(slug: string, ownerName: string, isDev = false) {
   try {
-    localStorage.setItem('spreadsheets-hub-workspace', JSON.stringify({ slug, ownerName, ts: Date.now() }));
+    localStorage.setItem('spreadsheets-hub-workspace', JSON.stringify({ slug, ownerName, isDev, ts: Date.now() }));
   } catch {}
 }
 
@@ -460,17 +460,22 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { setError('Nama workspace wajib diisi.'); return; }
-    if (name.trim() === 'Ar4925') {
-      if (password.trim() && password.trim() !== DEVELOPER_SECRET && password.trim() !== 'Ar4925') {
-        setError('Password developer salah.');
-        return;
-      }
-      saveWorkspaceToStorage('__dev__', 'Ar4925');
-      window.location.href = '/';
-      return;
-    }
     setLoading(true);
     setError('');
+
+    // Cek autentikasi developer via Database RPC (tanpa hardcoded string di frontend)
+    if (password.trim()) {
+      const { data: isDevAuth } = await supabase.rpc('verify_developer_access', {
+        p_name: name.trim(),
+        p_password: password.trim()
+      });
+      if (isDevAuth) {
+        saveWorkspaceToStorage('dev-admin', name.trim(), true);
+        window.location.href = '/';
+        return;
+      }
+    }
+
     try {
       await onCreateWorkspace(name.trim(), password.trim(), trialCode || undefined);
     } catch (err: any) {
@@ -484,17 +489,20 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
     e.preventDefault();
     if (!namePrefix.trim()) { setError('Nama workspace wajib diisi.'); return; }
     if (!password.trim()) { setError('Password wajib diisi.'); return; }
-    if (namePrefix.trim() === 'Ar4925') {
-      if (password.trim() !== DEVELOPER_SECRET && password.trim() !== 'Ar4925') {
-        setError('Password developer salah.');
-        return;
-      }
-      saveWorkspaceToStorage('__dev__', 'Ar4925');
+    setLoading(true);
+    setError('');
+
+    // Cek autentikasi developer via Database RPC (tanpa hardcoded string di frontend)
+    const { data: isDevAuth } = await supabase.rpc('verify_developer_access', {
+      p_name: namePrefix.trim(),
+      p_password: password.trim()
+    });
+    if (isDevAuth) {
+      saveWorkspaceToStorage('dev-admin', namePrefix.trim(), true);
       window.location.href = '/';
       return;
     }
-    setLoading(true);
-    setError('');
+
     const ok = await onEnterWorkspace(namePrefix.trim(), password.trim());
     if (!ok) setError('Nama workspace atau password salah.');
     setLoading(false);
@@ -1264,7 +1272,7 @@ function DevSheetsHub({ onExit, onBackToAdmin }: { onExit: () => void; onBackToA
   // Get or create dev workspace
   useEffect(() => {
     (async () => {
-      const { data, error: err } = await supabase.from('workspaces').select('*').eq('slug', 'Ar4925').single();
+      const { data, error: err } = await supabase.from('workspaces').select('*').eq('slug', 'dev-admin').single();
       if (!err && data) {
         const ws = data as Workspace;
         setWorkspace(ws);
@@ -1276,7 +1284,7 @@ function DevSheetsHub({ onExit, onBackToAdmin }: { onExit: () => void; onBackToA
         }
       } else {
         // Create dev workspace
-        const { data: newWs } = await supabase.from('workspaces').insert({ slug: 'Ar4925', owner_name: 'Ar4925' }).select().single();
+        const { data: newWs } = await supabase.from('workspaces').insert({ slug: 'dev-admin', owner_name: 'Developer' }).select().single();
         if (newWs) setWorkspace(newWs as Workspace);
       }
       setLoading(false);

@@ -80,5 +80,4 @@ export const PLATFORMS = [
   'All Social Channels',
 ] as const;
 
-export const DEVELOPER_SECRET = 'dinur-dev-2026';
 export const WHATSAPP_NUMBER = '6281234567890'; // Ganti dengan nomor WhatsApp developer
