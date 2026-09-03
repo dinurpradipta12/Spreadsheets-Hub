@@ -5,6 +5,15 @@ import type { ContentPlanSheet, SheetFormData, ToastMessage, Workspace, TrialLin
 import { PLATFORMS, WHATSAPP_NUMBER, DEFAULT_SETTINGS } from './types';
 import logoImg from './sheets.png';
 import qrImg from './qr.png';
+import {
+  DEFAULT_TELEGRAM_BOT_TOKEN,
+  sendTelegramNotification,
+  notifyNewWorkspace,
+  notifyNewSheet,
+  notifySubscriptionActivated,
+  notifyWorkspaceDeactivated,
+  startTelegramBotPoller,
+} from './services/telegram';
 
 // ─── Countdown Hook ────────────────────────────────────────────────
 function useCountdown(endTime: string | null): string {
@@ -792,6 +801,20 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
     setSettingsToast({ type: 'success', msg: 'Settings berhasil disimpan!' });
   };
 
+  const testTelegramNotif = async () => {
+    const chatId = settingsForm.telegram_chat_id || localStorage.getItem('telegram_chat_id');
+    const ok = await sendTelegramNotification(
+      `🔔 <b>TES NOTIFIKASI BOT TELEGRAM</b>\n\nBot Telegram Confusheets berhasil terhubung ke Spreadsheets Hub Manager!`,
+      null,
+      chatId || undefined
+    );
+    if (ok) {
+      setSettingsToast({ type: 'success', msg: 'Notifikasi tes berhasil dikirim ke Telegram!' });
+    } else {
+      setSettingsToast({ type: 'error', msg: 'Gagal mengirim notifikasi. Pastikan Anda sudah kirim /start ke bot @Confusheetsbot di Telegram!' });
+    }
+  };
+
   const handleCopyShareLink = async () => {
     const url = window.location.origin;
     try { await navigator.clipboard.writeText(url); setCopiedLink(true); setToast({ type: 'success', msg: 'Link tersalin!' }); setTimeout(() => setCopiedLink(false), 2000); }
@@ -971,7 +994,11 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
     const { error: err } = await supabase.rpc('activate_trial_user', { p_workspace_id: ws.id });
     setActionLoading(null);
     if (err) { setToast({ type: 'error', msg: err.message }); }
-    else { setToast({ type: 'success', msg: `Workspace "${ws.owner_name}" berhasil diaktifkan + langganan 1 bulan dimulai.` }); fetchWorkspaces(); }
+    else {
+      setToast({ type: 'success', msg: `Workspace "${ws.owner_name}" berhasil diaktifkan + langganan 1 bulan dimulai.` });
+      notifySubscriptionActivated(ws).catch(() => {});
+      fetchWorkspaces();
+    }
   };
 
   const extendSubscription = async (ws: Workspace) => {
@@ -979,7 +1006,11 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
     const { error: err } = await supabase.rpc('extend_subscription', { p_workspace_id: ws.id });
     setActionLoading(null);
     if (err) { setToast({ type: 'error', msg: err.message }); }
-    else { setToast({ type: 'success', msg: `Langganan "${ws.owner_name}" diperpanjang 1 bulan.` }); fetchWorkspaces(); }
+    else {
+      setToast({ type: 'success', msg: `Langganan "${ws.owner_name}" diperpanjang 1 bulan.` });
+      notifySubscriptionActivated(ws).catch(() => {});
+      fetchWorkspaces();
+    }
   };
 
   const sendSubscriptionWarning = async (ws: Workspace) => {
@@ -995,7 +1026,15 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
     const { error: err } = await supabase.rpc('toggle_workspace_active', { p_workspace_id: ws.id });
     setActionLoading(null);
     if (err) { setToast({ type: 'error', msg: err.message }); }
-    else { setToast({ type: 'success', msg: `Workspace "${ws.owner_name}" ${ws.is_active ? 'dinonaktifkan' : 'diaktifkan'}.` }); fetchWorkspaces(); }
+    else {
+      setToast({ type: 'success', msg: `Workspace "${ws.owner_name}" ${ws.is_active ? 'dinonaktifkan' : 'diaktifkan'}.` });
+      if (ws.is_active) {
+        notifyWorkspaceDeactivated(ws).catch(() => {});
+      } else {
+        notifySubscriptionActivated(ws).catch(() => {});
+      }
+      fetchWorkspaces();
+    }
   };
 
   const togglePaid = async (ws: Workspace) => {
@@ -1348,6 +1387,27 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
               <label className="form-label">App Description</label>
               <input className="form-input" value={settingsForm.app_description ?? ''} onChange={(e) => setSettingsForm((p) => ({ ...p, app_description: e.target.value }))} placeholder="Spreadsheets Management by Dinur Pradipta" />
             </div>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 16 }}>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                🤖 Telegram Bot Integration & Controls
+              </h4>
+              <div className="form-group">
+                <label className="form-label">Telegram Bot Token</label>
+                <input className="form-input" value={settingsForm.telegram_bot_token ?? DEFAULT_TELEGRAM_BOT_TOKEN} onChange={(e) => setSettingsForm((p) => ({ ...p, telegram_bot_token: e.target.value }))} placeholder="8710369828:AAFbBonPY..." />
+                <p className="form-hint">Token bot Telegram untuk menerima notifikasi realtime dan mengontrol aplikasi.</p>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Telegram Chat ID (Developer)</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input className="form-input" value={settingsForm.telegram_chat_id ?? ''} onChange={(e) => setSettingsForm((p) => ({ ...p, telegram_chat_id: e.target.value }))} placeholder="Terisi otomatis saat Anda kirim /start ke bot..." />
+                  <button type="button" className="btn-outline-sm" style={{ flexShrink: 0 }} onClick={testTelegramNotif}>
+                    Tes Notifikasi
+                  </button>
+                </div>
+                <p className="form-hint">Akan terisi otomatis begitu Anda mengirim <code>/start</code> ke bot Telegram <b>@Confusheetsbot</b>.</p>
+              </div>
+            </div>
             <div className="form-actions" style={{ marginTop: 16 }}>
               <button className="btn-primary" onClick={saveSettings} disabled={settingsSaving}>
                 {settingsSaving ? 'Menyimpan...' : 'Simpan Settings'}
@@ -1652,6 +1712,12 @@ function ConnectModal({ open, onClose, onSuccess, workspaceId, toast }: {
     });
     if (error) { toast('error', `Gagal menyimpan: ${error.message}`); return; }
     toast('success', `Sheet "${data.title}" berhasil dihubungkan.`);
+    const sheetTitle = data.title || `Spreadsheet ${data.clientName}`;
+    supabase.from('workspaces').select('owner_name').eq('id', workspaceId).single().then(({ data: wsData }) => {
+      if (wsData) {
+        notifyNewSheet((wsData as any).owner_name, data.clientName, sheetTitle, data.platform).catch(() => {});
+      }
+    });
     onSuccess();
   };
 
@@ -2294,6 +2360,10 @@ export default function App() {
   const [dark, setDark] = useState(() => { try { return localStorage.getItem('theme') === 'dark'; } catch { return false; } });
 
   useEffect(() => {
+    startTelegramBotPoller();
+  }, []);
+
+  useEffect(() => {
     document.body.classList.toggle('dark', dark);
     try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch {}
   }, [dark]);
@@ -2467,6 +2537,7 @@ export default function App() {
     const { data: ws, error: insertErr } = await supabase.from('workspaces').insert(insertData).select(PUBLIC_WORKSPACE_FIELDS).single();
     if (insertErr || !ws) throw new Error(insertErr?.message || 'Gagal membuat workspace');
     saveWorkspaceToStorage(ws.slug, name);
+    notifyNewWorkspace(ws as Workspace).catch(() => {});
     window.location.href = `/?w=${ws.slug}`;
   };
 
