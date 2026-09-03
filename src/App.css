@@ -109,8 +109,8 @@ body {
 }
 
 .app-header-logo-img {
-  width: 52px;
-  height: 52px;
+  width: 72px;
+  height: 72px;
   object-fit: contain;
 }
 
@@ -1300,10 +1300,10 @@ body.dark ::-webkit-scrollbar-thumb { background: #3A3A4A; }
 }
 
 .landing-logo {
-  width: 64px;
-  height: 64px;
+  width: 96px;
+  height: 96px;
   object-fit: contain;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .landing-card h1 {
