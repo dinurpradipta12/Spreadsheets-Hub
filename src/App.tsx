@@ -1983,6 +1983,175 @@ function SubscriptionExpiringModal({
   );
 }
 
+// ─── Modal Tutorial & Panduan ──────────────────────────────────────
+function TutorialModal({ onClose }: { onClose: () => void }) {
+  const [activeTab, setActiveTab] = useState<'how' | 'connect' | 'features' | 'faq'>('how');
+
+  return (
+    <div className="trial-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="trial-modal-content tutorial-modal-wrap" style={{ maxWidth: 660 }}>
+        <div className="trial-modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(229, 118, 92, 0.15)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Panduan & Tutorial Penggunaan</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--muted)' }}>Petunjuk cara kerja & pengisian form Spreadsheets Hub</p>
+            </div>
+          </div>
+          <button className="trial-modal-close" onClick={onClose}>&times;</button>
+        </div>
+
+        {/* Tab navigation */}
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--bg)', padding: '6px 12px', gap: 6, overflowX: 'auto' }}>
+          <button
+            className={cn('dev-tab-btn', activeTab === 'how' && 'dev-tab-btn-active')}
+            onClick={() => setActiveTab('how')}
+            style={{ fontSize: '0.82rem', padding: '6px 12px' }}
+          >
+            ⚡ Cara Kerja
+          </button>
+          <button
+            className={cn('dev-tab-btn', activeTab === 'connect' && 'dev-tab-btn-active')}
+            onClick={() => setActiveTab('connect')}
+            style={{ fontSize: '0.82rem', padding: '6px 12px' }}
+          >
+            📝 Hubungkan Sheet
+          </button>
+          <button
+            className={cn('dev-tab-btn', activeTab === 'features' && 'dev-tab-btn-active')}
+            onClick={() => setActiveTab('features')}
+            style={{ fontSize: '0.82rem', padding: '6px 12px' }}
+          >
+            🎯 Fitur Toolbar
+          </button>
+          <button
+            className={cn('dev-tab-btn', activeTab === 'faq' && 'dev-tab-btn-active')}
+            onClick={() => setActiveTab('faq')}
+            style={{ fontSize: '0.82rem', padding: '6px 12px' }}
+          >
+            ❓ Tips & FAQ
+          </button>
+        </div>
+
+        <div className="trial-modal-body" style={{ padding: '20px', gap: '16px', maxHeight: '65vh', overflowY: 'auto' }}>
+          {activeTab === 'how' && (
+            <div className="tutorial-step-list">
+              <div className="tutorial-card">
+                <div className="tutorial-card-num">1</div>
+                <div>
+                  <h4>Dashboard Terpusat Semua Klien / Brand</h4>
+                  <p>Anda tidak perlu lagi membuka banyak tab Google Sheets di browser. Kelola puluhan spreadsheet brand atau keuangan Anda dalam 1 tempat secara rapi.</p>
+                </div>
+              </div>
+              <div className="tutorial-card">
+                <div className="tutorial-card-num">2</div>
+                <div>
+                  <h4>Navigasi Cepat via Sidebar</h4>
+                  <p>Klik nama klien/brand pada daftar sidebar di sebelah kiri. Spreadsheet yang dipilih akan langsung tampil secara instan di area tengah.</p>
+                </div>
+              </div>
+              <div className="tutorial-card">
+                <div className="tutorial-card-num">3</div>
+                <div>
+                  <h4>Real-time Live Sync</h4>
+                  <p>Setiap perubahan data yang diisi di Google Sheets asli akan otomatis diperbarui dan dapat dilihat secara langsung di dalam aplikasi ini.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'connect' && (
+            <div className="tutorial-step-list">
+              <div className="tutorial-step-item">
+                <span className="step-badge">Langkah 1</span>
+                <h4>Dapatkan Link Google Sheet Anda</h4>
+                <p>Buka file Google Sheets Anda. Di menu atas, pilih <strong>File &gt; Bagikan &gt; Publikasikan ke Web</strong> lalu klik <strong>Publikasikan</strong> dan salin link-nya. <em>(Atau bisa langsung menyalin URL Google Sheet reguler Anda dari address bar browser).</em></p>
+              </div>
+              <div className="tutorial-step-item">
+                <span className="step-badge">Langkah 2</span>
+                <h4>Klik "+ Hubungkan Sheet Baru"</h4>
+                <p>Klik tombol oranye <strong>+ Hubungkan Sheet Baru</strong> yang berada di pojok kanan atas halaman aplikasi ini.</p>
+              </div>
+              <div className="tutorial-step-item">
+                <span className="step-badge">Langkah 3</span>
+                <h4>Isi Form Spreadsheet</h4>
+                <ul style={{ paddingLeft: '20px', margin: '8px 0', fontSize: '0.85rem', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <li><strong>Nama Sheet / Brand</strong>: Nama klien atau divisi (misal: <em>Keuangan Keluarga</em>, <em>Bilik Strategi</em>).</li>
+                  <li><strong>Platform</strong>: Pilih kategori atau ketik nama platform (misal: <em>Instagram</em>, <em>TikTok</em>, <em>Finance</em>).</li>
+                  <li><strong>URL Google Sheet</strong>: Tempelkan (paste) link Google Sheet yang sudah Anda salin di Langkah 1.</li>
+                </ul>
+              </div>
+              <div className="tutorial-step-item">
+                <span className="step-badge">Langkah 4</span>
+                <h4>Simpan & Selesai!</h4>
+                <p>Klik tombol <strong>Simpan Sheet</strong>. Spreadsheet Anda akan langsung muncul di sidebar kiri dan siap diakses kapan saja.</p>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'features' && (
+            <div className="tutorial-grid">
+              <div className="tutorial-feature-card">
+                <div className="feature-icon">🔍</div>
+                <div>
+                  <h4>Focus Mode (Focus)</h4>
+                  <p>Memperbesar area spreadsheet hingga memenuhi layar penuh tanpa terganggu sidebar. Sangat cocok saat presentasi atau analisa data.</p>
+                </div>
+              </div>
+              <div className="tutorial-feature-card">
+                <div className="feature-icon">🔎</div>
+                <div>
+                  <h4>Pengaturan Zoom & Viewport</h4>
+                  <p>Sesuaikan skala Zoom tampilan (50% hingga 150%) dan tinggi layar (Viewport 500px - 1000px) sesuai kenyamanan monitor Anda.</p>
+                </div>
+              </div>
+              <div className="tutorial-feature-card">
+                <div className="feature-icon">↗️</div>
+                <div>
+                  <h4>Buka & Edit Direct</h4>
+                  <p>Klik tombol <strong>Buka</strong> atau <strong>Edit</strong> di toolbar spreadsheet untuk membuka Google Sheets asli secara langsung di tab baru.</p>
+                </div>
+              </div>
+              <div className="tutorial-feature-card">
+                <div className="feature-icon">📋</div>
+                <div>
+                  <h4>Salin Link & Manajemen</h4>
+                  <p>Salin link embed dengan 1-klik untuk dibagikan, atau ubah detail brand/platform kapan pun dibutuhkan.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'faq' && (
+            <div className="tutorial-faq-list">
+              <div className="faq-item">
+                <h4>Q: Kenapa Sheet saya kosong / tidak muncul?</h4>
+                <p>Pastikan pengaturan akses Google Sheet Anda sudah diubah menjadi <strong>"Siapa saja yang memiliki link"</strong> (Anyone with the link) atau sudah dipublikasikan melalui menu <em>File &gt; Bagikan &gt; Publikasikan ke Web</em>.</p>
+              </div>
+              <div className="faq-item">
+                <h4>Q: Apakah data di spreadsheet aman?</h4>
+                <p>Sangat aman! Data disimpan dan diproses langsung di Google Sheets milik Anda sendiri. Hub ini berfungsi sebagai portal tampilan cepat yang terorganisir.</p>
+              </div>
+              <div className="faq-item">
+                <h4>Q: Apakah saya bisa menghubungkan lebih dari 10 sheet?</h4>
+                <p>Ya! Anda bisa menghubungkan sebanyak mungkin spreadsheet klien atau brand di dalam workspace Anda tanpa batasan jumlah.</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn-primary" onClick={onClose} style={{ padding: '8px 20px', fontSize: '0.88rem' }}>
+            Saya Mengerti
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main App ──────────────────────────────────────────────────────
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -2002,6 +2171,7 @@ export default function App() {
   const [showConnect, setShowConnect] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showTutorialModal, setShowTutorialModal] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [viewportH, setViewportH] = useState(720);
@@ -2393,6 +2563,19 @@ export default function App() {
           </div>
         </div>
         <div className="app-header-right">
+          <button
+            className="btn-help-toggle"
+            onClick={() => setShowTutorialModal(true)}
+            title="Tutorial & Panduan Penggunaan"
+            aria-label="Tutorial & Panduan Penggunaan"
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <span>Panduan</span>
+          </button>
           <button className="btn-dark-toggle" onClick={() => setDark(!dark)} aria-label={dark ? 'Mode terang' : 'Mode gelap'}>
             {dark ? (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -2571,6 +2754,11 @@ export default function App() {
           remainingDays={subWarningDays}
           onClose={() => setShowSubWarningModal(false)}
         />
+      )}
+
+      {/* Tutorial & Panduan Modal */}
+      {showTutorialModal && (
+        <TutorialModal onClose={() => setShowTutorialModal(false)} />
       )}
 
       {/* Toasts */}
