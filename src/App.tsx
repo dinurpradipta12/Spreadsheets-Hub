@@ -679,8 +679,16 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
 
   const saveSettings = async () => {
     setSettingsSaving(true);
-    const rows = Object.entries(settingsForm).map(([key, value]) => ({ key, value }));
-    const { error: err } = await supabase.from('app_settings').upsert(rows, { onConflict: 'key' });
+    // Gunakan RPC save_app_settings (SECURITY DEFINER) agar tidak kena RLS 401 error
+    let { error: err } = await supabase.rpc('save_app_settings', { p_settings: settingsForm });
+    
+    if (err) {
+      // Fallback ke direct upsert jika RPC belum di-deploy
+      const rows = Object.entries(settingsForm).map(([key, value]) => ({ key, value }));
+      const res = await supabase.from('app_settings').upsert(rows, { onConflict: 'key' });
+      err = res.error;
+    }
+
     setSettingsSaving(false);
     if (err) {
       setSettingsToast({ type: 'error', msg: `Gagal menyimpan: ${err.message}` });

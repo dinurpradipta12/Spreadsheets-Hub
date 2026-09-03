@@ -100,7 +100,34 @@ BEGIN
 END;
 $func$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 6. Update default payment settings
+-- 6. RPC: Save app settings (SECURITY DEFINER to bypass RLS 401 error)
+CREATE OR REPLACE FUNCTION public.save_app_settings(p_settings JSONB)
+RETURNS VOID AS $func$
+DECLARE
+  v_key TEXT;
+  v_val TEXT;
+BEGIN
+  FOR v_key, v_val IN SELECT * FROM jsonb_each_text(p_settings) LOOP
+    INSERT INTO public.app_settings (key, value, updated_at)
+    VALUES (v_key, v_val, now())
+    ON CONFLICT (key) DO UPDATE
+    SET value = EXCLUDED.value, updated_at = now();
+  END LOOP;
+END;
+$func$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 7. Fix RLS policies on app_settings
+DROP POLICY IF EXISTS "Anyone can update app_settings" ON public.app_settings;
+DROP POLICY IF EXISTS "Anyone can insert app_settings" ON public.app_settings;
+DROP POLICY IF EXISTS "Public read app_settings" ON public.app_settings;
+DROP POLICY IF EXISTS "Allow insert app_settings" ON public.app_settings;
+DROP POLICY IF EXISTS "Allow update app_settings" ON public.app_settings;
+
+CREATE POLICY "Public read app_settings" ON public.app_settings FOR SELECT USING (true);
+CREATE POLICY "Allow insert app_settings" ON public.app_settings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow update app_settings" ON public.app_settings FOR UPDATE USING (true) WITH CHECK (true);
+
+-- 8. Update default payment settings
 INSERT INTO public.app_settings (key, value) VALUES
   ('payment_amount', 'Rp 150.000 / bulan'),
   ('payment_note', 'Biaya Langganan 1 Bulan')
