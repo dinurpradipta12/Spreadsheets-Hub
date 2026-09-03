@@ -2,54 +2,74 @@ import { supabase } from '../lib/supabase';
 import type { Workspace } from '../types';
 
 export const DEFAULT_TELEGRAM_BOT_TOKEN = '8710369828:AAFbBonPYcXjp8-w0zQwEPV7n8DTHYV9S2o';
+const TELEGRAM_API = `https://api.telegram.org/bot${DEFAULT_TELEGRAM_BOT_TOKEN}`;
 
-let cachedBotToken: string | null = null;
 let cachedChatId: string | null = null;
 let isPollingActive = false;
 let lastUpdateId = 0;
 
 /**
- * Memuat Token Bot dan Chat ID dari database / settings
+ * Memuat Chat ID dari database / localStorage
  */
-export async function getTelegramConfig(): Promise<{ botToken: string; chatId: string | null }> {
-  try {
-    if (cachedBotToken && cachedChatId) {
-      return { botToken: cachedBotToken, chatId: cachedChatId };
-    }
+async function loadChatId(): Promise<string | null> {
+  if (cachedChatId) return cachedChatId;
 
-    const { data } = await supabase.from('app_settings').select('key, value');
-    let botToken = DEFAULT_TELEGRAM_BOT_TOKEN;
-    let chatId = localStorage.getItem('telegram_chat_id') || null;
-
-    if (data) {
-      for (const row of data as { key: string; value: string }[]) {
-        if (row.key === 'telegram_bot_token' && row.value?.trim()) {
-          botToken = row.value.trim();
-        }
-        if (row.key === 'telegram_chat_id' && row.value?.trim()) {
-          chatId = row.value.trim();
-        }
-      }
-    }
-
-    cachedBotToken = botToken;
-    cachedChatId = chatId;
-    return { botToken, chatId };
-  } catch (err) {
-    return { botToken: DEFAULT_TELEGRAM_BOT_TOKEN, chatId: localStorage.getItem('telegram_chat_id') };
+  // Cek localStorage dulu (paling cepat)
+  const local = localStorage.getItem('telegram_chat_id');
+  if (local) {
+    cachedChatId = local;
+    return local;
   }
+
+  // Cek dari app_settings di Supabase
+  try {
+    const { data } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'telegram_chat_id')
+      .single();
+    if (data?.value) {
+      cachedChatId = data.value;
+      localStorage.setItem('telegram_chat_id', data.value);
+      return data.value;
+    }
+  } catch {
+    // Ignore — table mungkin belum ada
+  }
+
+  return null;
 }
 
 /**
  * Menyimpan Telegram Chat ID ke app_settings & localStorage
  */
-export async function saveTelegramChatId(chatId: string) {
+async function saveChatId(chatId: string) {
   cachedChatId = chatId;
+  localStorage.setItem('telegram_chat_id', chatId);
   try {
-    localStorage.setItem('telegram_chat_id', chatId);
-    await supabase.rpc('save_app_settings', { p_settings: { telegram_chat_id: chatId } });
+    await supabase.from('app_settings').upsert(
+      { key: 'telegram_chat_id', value: chatId },
+      { onConflict: 'key' }
+    );
   } catch (err) {
-    console.error('Error saving telegram chat id:', err);
+    console.warn('[Telegram] Gagal menyimpan chat_id ke DB:', err);
+  }
+}
+
+/**
+ * Panggil Telegram Bot API method
+ */
+async function callTelegram(method: string, params: Record<string, any>): Promise<any> {
+  try {
+    const res = await fetch(`${TELEGRAM_API}/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error(`[Telegram] API call ${method} gagal:`, err);
+    return { ok: false };
   }
 }
 
@@ -61,33 +81,26 @@ export async function sendTelegramNotification(
   replyMarkup?: any,
   overrideChatId?: string
 ): Promise<boolean> {
-  try {
-    const { botToken, chatId } = await getTelegramConfig();
-    const targetChatId = overrideChatId || chatId;
+  const targetChatId = overrideChatId || cachedChatId || await loadChatId();
 
-    if (!botToken || !targetChatId) {
-      console.warn('Telegram Bot Token atau Chat ID belum dikonfigurasi.');
-      return false;
-    }
-
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: targetChatId,
-        text,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-        reply_markup: replyMarkup,
-      }),
-    });
-
-    const data = await res.json();
-    return data.ok === true;
-  } catch (err) {
-    console.error('Failed to send Telegram notification:', err);
+  if (!targetChatId) {
+    console.warn('[Telegram] Chat ID belum dikonfigurasi. Kirim /start ke @Confusheetsbot.');
     return false;
   }
+
+  const params: Record<string, any> = {
+    chat_id: targetChatId,
+    text,
+    parse_mode: 'HTML',
+    disable_web_page_preview: true,
+  };
+  if (replyMarkup) params.reply_markup = replyMarkup;
+
+  const result = await callTelegram('sendMessage', params);
+  if (!result.ok) {
+    console.error('[Telegram] sendMessage gagal:', result);
+  }
+  return result.ok === true;
 }
 
 /**
@@ -165,29 +178,30 @@ export async function notifyWorkspaceDeactivated(ws: Workspace) {
 
 /**
  * 🤖 TELEGRAM BOT POLLING SERVICE & REMOTE COMMAND HANDLER
- * Memungkinkan developer mengontrol aplikasi dari chat Telegram!
  */
 export function startTelegramBotPoller() {
   if (isPollingActive) return;
   isPollingActive = true;
+  console.log('[Telegram] Bot poller dimulai...');
 
   const poll = async () => {
     try {
-      const { botToken } = await getTelegramConfig();
-      if (!botToken) return;
-
-      const url = `https://api.telegram.org/bot${botToken}/getUpdates?offset=${lastUpdateId + 1}&timeout=5`;
+      const url = `${TELEGRAM_API}/getUpdates?offset=${lastUpdateId + 1}&timeout=5`;
       const res = await fetch(url);
       const data = await res.json();
 
       if (data.ok && Array.isArray(data.result) && data.result.length > 0) {
         for (const update of data.result) {
           lastUpdateId = update.update_id;
-          await handleTelegramUpdate(update);
+          try {
+            await handleTelegramUpdate(update);
+          } catch (err) {
+            console.error('[Telegram] Error handling update:', err);
+          }
         }
       }
     } catch (err) {
-      // Quiet poll error retry
+      console.error('[Telegram] Polling error:', err);
     } finally {
       if (isPollingActive) {
         setTimeout(poll, 3000);
@@ -202,50 +216,55 @@ export function startTelegramBotPoller() {
  * Memproses setiap pesan / command / callback button dari Telegram
  */
 async function handleTelegramUpdate(update: any) {
-  const { botToken } = await getTelegramConfig();
+  console.log('[Telegram] Received update:', JSON.stringify(update).substring(0, 200));
 
   // 1. Tangani Callback Query (klik Inline Button di Telegram)
   if (update.callback_query) {
     const cb = update.callback_query;
     const chatId = String(cb.message.chat.id);
-    const cbData = cb.data as string; // Contoh: tg_act:activate:uuid
+    const cbData = cb.data as string;
 
     if (cbData.startsWith('tg_act:')) {
       const parts = cbData.split(':');
-      const action = parts[1]; // activate, toggle_active, toggle_paid, delete
+      const action = parts[1];
       const wsId = parts[2];
 
-      const { data } = await supabase.rpc('process_telegram_action', {
-        p_action: action,
-        p_workspace_id: wsId,
-      });
-
       let resMsg = 'Aksi diproses.';
-      if (data && data[0]) {
-        resMsg = data[0].message;
+      try {
+        const { data } = await supabase.rpc('process_telegram_action', {
+          p_action: action,
+          p_workspace_id: wsId,
+        });
+        if (data && (data as any[])[0]) {
+          resMsg = (data as any[])[0].message;
+        }
+      } catch (err) {
+        resMsg = `Error: ${err}`;
       }
 
-      // Jawab Callback Query di Telegram (menampilkan popup singkat di chat)
-      await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callback_query_id: cb.id, text: resMsg, show_alert: true }),
+      // Jawab Callback Query
+      await callTelegram('answerCallbackQuery', {
+        callback_query_id: cb.id,
+        text: resMsg,
+        show_alert: true,
       });
 
-      // Kirim konfirmasi pesan baru di chat
-      await sendTelegramNotification(`⚡ <b>EKSEKUSI BOT:</b>\n${resMsg}`, null, chatId);
+      // Kirim konfirmasi pesan
+      await sendTelegramNotification(`⚡ <b>EKSEKUSI BOT:</b>\n${resMsg}`, undefined, chatId);
     }
     return;
   }
 
-  // 2. Tangani Pesan Teks / Commands (/start, /stats, /workspaces, /activate slug)
+  // 2. Tangani Pesan Teks / Commands
   if (update.message && update.message.text) {
     const msg = update.message;
     const chatId = String(msg.chat.id);
     const text = (msg.text as string).trim();
 
-    // Auto-save Chat ID developer saat pertama kali kirim pesan ke bot
-    saveTelegramChatId(chatId);
+    console.log(`[Telegram] Command dari chat ${chatId}: "${text}"`);
+
+    // Auto-save Chat ID developer
+    await saveChatId(chatId);
 
     // Command: /start atau /help
     if (text.startsWith('/start') || text.startsWith('/help')) {
@@ -253,8 +272,7 @@ async function handleTelegramUpdate(update: any) {
         `Selamat datang Developer! Bot ini terhubung langsung ke dashboard Spreadsheets Hub.\n\n` +
         `<b>📋 Perintah Utama:</b>\n` +
         `• /stats - Ringkasan statistik realtime\n` +
-        `• /workspaces - Daftar semua workspace & tombol kontrol\n` +
-        `• /trials - Daftar user trial & link demo\n\n` +
+        `• /workspaces - Daftar semua workspace & tombol kontrol\n\n` +
         `<b>⚡ Perintah Cepat:</b>\n` +
         `• <code>/activate [slug]</code> - Aktifkan + 1 bulan langganan\n` +
         `• <code>/extend [slug]</code> - Perpanjang langganan +1 bulan\n` +
@@ -262,89 +280,108 @@ async function handleTelegramUpdate(update: any) {
         `• <code>/delete [slug]</code> - Hapus workspace\n\n` +
         `<i>Chat ID Anda (<code>${chatId}</code>) telah otomatis terhubung untuk menerima notifikasi!</i>`;
 
-      await sendTelegramNotification(helpMsg, null, chatId);
+      const ok = await sendTelegramNotification(helpMsg, undefined, chatId);
+      console.log(`[Telegram] /start response sent: ${ok}`);
       return;
     }
 
     // Command: /stats
     if (text.startsWith('/stats')) {
-      const { data: wsList } = await supabase.from('workspaces').select('*');
-      const list = (wsList as Workspace[]) || [];
-      const total = list.length;
-      const active = list.filter(w => w.is_active && (!w.subscription_ends_at || new Date(w.subscription_ends_at) >= new Date())).length;
-      const revoked = list.filter(w => !w.is_active || (w.subscription_ends_at && new Date(w.subscription_ends_at) < new Date())).length;
-      const paid = list.filter(w => w.has_paid).length;
-      const trial = list.filter(w => w.is_trial).length;
+      try {
+        const { data: wsList } = await supabase.from('workspaces').select('*');
+        const list = (wsList as Workspace[]) || [];
+        const total = list.length;
+        const active = list.filter(w => w.is_active && (!w.subscription_ends_at || new Date(w.subscription_ends_at) >= new Date())).length;
+        const revoked = list.filter(w => !w.is_active || (w.subscription_ends_at && new Date(w.subscription_ends_at) < new Date())).length;
+        const paid = list.filter(w => w.has_paid).length;
+        const trial = list.filter(w => w.is_trial).length;
 
-      const statsMsg = `📊 <b>STATISTIK REALTIME SPREADSHEETS HUB</b>\n\n` +
-        `🏢 <b>Total Workspace:</b> ${total}\n` +
-        `🟢 <b>Aktif:</b> ${active}\n` +
-        `🔴 <b>Revoked / Expired:</b> ${revoked}\n` +
-        `💳 <b>Paid:</b> ${paid}\n` +
-        `🎁 <b>Trial Users:</b> ${trial}\n\n` +
-        `⏰ <i>Data diperbarui: ${new Date().toLocaleTimeString('id-ID')}</i>`;
+        const statsMsg = `📊 <b>STATISTIK REALTIME SPREADSHEETS HUB</b>\n\n` +
+          `🏢 <b>Total Workspace:</b> ${total}\n` +
+          `🟢 <b>Aktif:</b> ${active}\n` +
+          `🔴 <b>Revoked / Expired:</b> ${revoked}\n` +
+          `💳 <b>Paid:</b> ${paid}\n` +
+          `🎁 <b>Trial Users:</b> ${trial}\n\n` +
+          `⏰ <i>Data diperbarui: ${new Date().toLocaleTimeString('id-ID')}</i>`;
 
-      await sendTelegramNotification(statsMsg, null, chatId);
+        await sendTelegramNotification(statsMsg, undefined, chatId);
+      } catch (err) {
+        await sendTelegramNotification(`❌ Gagal memuat statistik: ${err}`, undefined, chatId);
+      }
       return;
     }
 
     // Command: /workspaces atau /list
     if (text.startsWith('/workspaces') || text.startsWith('/list')) {
-      const { data: wsList } = await supabase.from('workspaces').select('*').order('created_at', { ascending: false }).limit(10);
-      const list = (wsList as Workspace[]) || [];
+      try {
+        const { data: wsList } = await supabase.from('workspaces').select('*').order('created_at', { ascending: false }).limit(10);
+        const list = (wsList as Workspace[]) || [];
 
-      if (list.length === 0) {
-        await sendTelegramNotification('🏢 <i>Belum ada workspace yang mendaftar.</i>', null, chatId);
-        return;
-      }
+        if (list.length === 0) {
+          await sendTelegramNotification('🏢 <i>Belum ada workspace yang mendaftar.</i>', undefined, chatId);
+          return;
+        }
 
-      await sendTelegramNotification(`🏢 <b>DAFTAR WORKSPACE (10 Terakhir):</b>`, null, chatId);
+        await sendTelegramNotification(`🏢 <b>DAFTAR WORKSPACE (10 Terakhir):</b>`, undefined, chatId);
 
-      for (const ws of list) {
-        const isSubExpired = ws.subscription_ends_at ? new Date(ws.subscription_ends_at) < new Date() : false;
-        const isActive = ws.is_active && !isSubExpired;
+        for (const ws of list) {
+          const isSubExpired = ws.subscription_ends_at ? new Date(ws.subscription_ends_at) < new Date() : false;
+          const isActive = ws.is_active && !isSubExpired;
 
-        const itemMsg = `👤 <b>${ws.owner_name}</b> (<code>${ws.slug}</code>)\n` +
-          `• Status: ${isActive ? '🟢 Active' : '🔴 Revoked / Expired'}\n` +
-          `• Payment: ${ws.has_paid ? '💳 Paid' : '💵 Free'}\n` +
-          `• Langganan: ${ws.subscription_ends_at ? new Date(ws.subscription_ends_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}`;
+          const itemMsg = `👤 <b>${ws.owner_name}</b> (<code>${ws.slug}</code>)\n` +
+            `• Status: ${isActive ? '🟢 Active' : '🔴 Revoked / Expired'}\n` +
+            `• Payment: ${ws.has_paid ? '💳 Paid' : '💵 Free'}\n` +
+            `• Langganan: ${ws.subscription_ends_at ? new Date(ws.subscription_ends_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}`;
 
-        const keyboard = {
-          inline_keyboard: [
-            [
-              { text: '✅ +1Bln', callback_data: `tg_act:activate:${ws.id}` },
-              { text: ws.is_active ? '🔴 Nonaktifkan' : '🟢 Aktifkan', callback_data: `tg_act:toggle_active:${ws.id}` },
+          const keyboard = {
+            inline_keyboard: [
+              [
+                { text: '✅ +1Bln', callback_data: `tg_act:activate:${ws.id}` },
+                { text: ws.is_active ? '🔴 Nonaktifkan' : '🟢 Aktifkan', callback_data: `tg_act:toggle_active:${ws.id}` },
+              ],
+              [
+                { text: ws.has_paid ? '💳 Paid' : '💵 Set Paid', callback_data: `tg_act:toggle_paid:${ws.id}` },
+                { text: '🗑 Hapus', callback_data: `tg_act:delete:${ws.id}` },
+              ],
             ],
-            [
-              { text: ws.has_paid ? '💳 Status: Paid' : '💵 Set Paid', callback_data: `tg_act:toggle_paid:${ws.id}` },
-              { text: '🗑 Hapus', callback_data: `tg_act:delete:${ws.id}` },
-            ],
-          ],
-        };
+          };
 
-        await sendTelegramNotification(itemMsg, keyboard, chatId);
+          await sendTelegramNotification(itemMsg, keyboard, chatId);
+        }
+      } catch (err) {
+        await sendTelegramNotification(`❌ Gagal memuat daftar workspace: ${err}`, undefined, chatId);
       }
       return;
     }
 
-    // Command: /activate [slug] atau /extend [slug] atau /revoke [slug] atau /delete [slug]
+    // Command: /activate, /extend, /revoke, /delete [slug]
     const cmdMatch = text.match(/^\/(activate|extend|revoke|delete)\s+(.+)$/i);
     if (cmdMatch) {
       let action = cmdMatch[1].toLowerCase();
       if (action === 'revoke') action = 'toggle_active';
       const targetSlug = cmdMatch[2].trim();
 
-      const { data } = await supabase.rpc('process_telegram_action', {
-        p_action: action,
-        p_slug: targetSlug,
-      });
-
       let resMsg = 'Aksi selesai.';
-      if (data && data[0]) {
-        resMsg = data[0].message;
+      try {
+        const { data } = await supabase.rpc('process_telegram_action', {
+          p_action: action,
+          p_slug: targetSlug,
+        });
+        if (data && (data as any[])[0]) {
+          resMsg = (data as any[])[0].message;
+        }
+      } catch (err) {
+        resMsg = `Error: ${err}`;
       }
-      await sendTelegramNotification(`⚡ <b>EKSEKUSI PERINTAH:</b>\n${resMsg}`, null, chatId);
+      await sendTelegramNotification(`⚡ <b>EKSEKUSI PERINTAH:</b>\n${resMsg}`, undefined, chatId);
       return;
     }
+
+    // Pesan tidak dikenali
+    await sendTelegramNotification(
+      `❓ Perintah tidak dikenal. Ketik /help untuk melihat daftar perintah.`,
+      undefined,
+      chatId
+    );
   }
 }
