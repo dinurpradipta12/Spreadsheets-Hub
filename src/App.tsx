@@ -430,6 +430,59 @@ function SheetForm({
   );
 }
 
+// ─── Modal Input Akses Developer ────────────────────────────────────
+function DevAccessModal({ onClose }: { onClose: () => void }) {
+  const [devKey, setDevKey] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (devKey.trim().toLowerCase() === 'ar4925') {
+      saveWorkspaceToStorage('dev-admin', 'Ar4925', true);
+      window.location.href = '/?w=__dev__';
+    } else {
+      setError('Kata kunci akses developer salah.');
+    }
+  };
+
+  return (
+    <div className="trial-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="trial-modal-content" style={{ maxWidth: 400 }}>
+        <div className="trial-modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(52, 76, 75, 0.15)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Akses Developer Panel</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--muted)' }}>Masukkan kata kunci khusus developer</p>
+            </div>
+          </div>
+          <button className="trial-modal-close" onClick={onClose}>&times;</button>
+        </div>
+        <form onSubmit={handleSubmit} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="form-group">
+            <label className="form-label">Kata Kunci Akses</label>
+            <input
+              type="password"
+              className={cn('form-input', error && 'form-input-error')}
+              value={devKey}
+              onChange={(e) => { setDevKey(e.target.value); setError(''); }}
+              placeholder="Masukkan kata kunci (Ar4925)..."
+              autoFocus
+            />
+            {error && <p className="form-error" style={{ marginTop: 6 }}>{error}</p>}
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" className="btn-secondary" onClick={onClose}>Batal</button>
+            <button type="submit" className="btn-primary">Masuk Developer Panel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Landing Page ──────────────────────────────────────────────────
 function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trialCode }: {
   onCreateWorkspace: (name: string, password: string, trialCode?: string) => void;
@@ -449,6 +502,23 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
   const [showPwHint, setShowPwHint] = useState(false);
   const [trialDurationHours, setTrialDurationHours] = useState<number | null>(null);
   const [trialBannerLoading, setTrialBannerLoading] = useState(!!trialCode);
+  const [showDevModal, setShowDevModal] = useState(false);
+
+  const clickTimer = useRef<any>(null);
+  const clickCount = useRef(0);
+  const handleLogoClick = () => {
+    clickCount.current += 1;
+    if (clickCount.current === 2) {
+      clickCount.current = 0;
+      if (clickTimer.current) clearTimeout(clickTimer.current);
+      setShowDevModal(true);
+    } else {
+      if (clickTimer.current) clearTimeout(clickTimer.current);
+      clickTimer.current = setTimeout(() => {
+        clickCount.current = 0;
+      }, 400);
+    }
+  };
 
   useEffect(() => {
     if (!trialCode) return;
@@ -530,7 +600,15 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
         </button>
       </div>
       <div className="landing-card">
-        <img src={logoImg} alt="Logo" className="landing-logo" />
+        <img
+          src={logoImg}
+          alt="Logo"
+          className="landing-logo"
+          onClick={handleLogoClick}
+          onDoubleClick={() => setShowDevModal(true)}
+          style={{ cursor: 'pointer' }}
+          title="Klik 2x untuk Akses Developer"
+        />
         <h1>Spreadsheets Hub Manager</h1>
         <p>Spreadsheets Management by Dinur Pradipta</p>
         <p className="landing-subtitle">Buat atau masuk ke workspace Anda untuk mengelola berbagai Google Sheets langsung dari satu tempat.</p>
@@ -639,6 +717,8 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
         <p className="landing-footer-text">
           Workspace dibuat gratis. Hubungi developer untuk upgrade fitur.
         </p>
+        {/* Modal Dev Access */}
+        {showDevModal && <DevAccessModal onClose={() => setShowDevModal(false)} />}
       </div>
     </div>
   );
