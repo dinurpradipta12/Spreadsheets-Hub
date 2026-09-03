@@ -447,3 +447,72 @@ body.dark .trial-modal-backdrop { background: rgba(0,0,0,0.7); }
   gap: 4px;
   align-items: center;
 }
+
+/* ─── 2-Column Layout for Trial Expired & Locked Modal with QR ─── */
+.trial-expired-2col {
+  max-width: 820px !important;
+  width: 95% !important;
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  align-items: stretch;
+  border-radius: var(--radius-lg, 16px);
+}
+
+.trial-expired-left {
+  padding: 36px 30px 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+.trial-expired-right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 24px;
+  border-left: 1px solid var(--border);
+}
+
+body.dark .trial-expired-right {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.trial-qr-img {
+  width: 100%;
+  max-width: 360px;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  border-radius: 12px;
+  display: block;
+  box-shadow: var(--shadow, 0 4px 16px rgba(0, 0, 0, 0.08));
+  transition: transform 0.2s ease;
+}
+
+.trial-qr-img:hover {
+  transform: scale(1.02);
+}
+
+@media (max-width: 768px) {
+  .trial-expired-2col {
+    grid-template-columns: 1fr !important;
+    max-width: 440px !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+  }
+  .trial-expired-left {
+    padding: 28px 20px 20px;
+  }
+  .trial-expired-right {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 20px;
+  }
+  .trial-qr-img {
+    max-width: 260px;
+  }
+}
