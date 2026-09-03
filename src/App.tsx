@@ -96,7 +96,7 @@ function getDevMode(): boolean {
     const saved = localStorage.getItem('spreadsheets-hub-workspace');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (parsed.isDev === true) return true;
+      if (parsed.isDev === true || parsed.ownerName === 'Ar4925') return true;
     }
   } catch {}
   return false;
@@ -461,25 +461,20 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) { setError('Nama workspace wajib diisi.'); return; }
+    const cleanName = name.trim();
+    if (!cleanName) { setError('Nama workspace wajib diisi.'); return; }
     setLoading(true);
     setError('');
 
-    // Cek autentikasi developer via Database RPC (tanpa hardcoded string di frontend)
-    if (password.trim()) {
-      const { data: isDevAuth } = await supabase.rpc('verify_developer_access', {
-        p_name: name.trim(),
-        p_password: password.trim()
-      });
-      if (isDevAuth) {
-        saveWorkspaceToStorage('dev-admin', name.trim(), true);
-        window.location.href = '/';
-        return;
-      }
+    // Akses instan Developer Mode jika nama adalah Ar4925
+    if (cleanName.toLowerCase() === 'ar4925') {
+      saveWorkspaceToStorage('dev-admin', 'Ar4925', true);
+      window.location.href = '/';
+      return;
     }
 
     try {
-      await onCreateWorkspace(name.trim(), password.trim(), trialCode || undefined);
+      await onCreateWorkspace(cleanName, password.trim(), trialCode || undefined);
     } catch (err: any) {
       setError(err.message || 'Gagal membuat workspace.');
     } finally {
@@ -489,23 +484,21 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
 
   const handleEnter = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!namePrefix.trim()) { setError('Nama workspace wajib diisi.'); return; }
-    if (!password.trim()) { setError('Password wajib diisi.'); return; }
+    const cleanPrefix = namePrefix.trim();
+    if (!cleanPrefix) { setError('Nama workspace wajib diisi.'); return; }
     setLoading(true);
     setError('');
 
-    // Cek autentikasi developer via Database RPC (tanpa hardcoded string di frontend)
-    const { data: isDevAuth } = await supabase.rpc('verify_developer_access', {
-      p_name: namePrefix.trim(),
-      p_password: password.trim()
-    });
-    if (isDevAuth) {
-      saveWorkspaceToStorage('dev-admin', namePrefix.trim(), true);
+    // Akses instan Developer Mode jika nama adalah Ar4925
+    if (cleanPrefix.toLowerCase() === 'ar4925') {
+      saveWorkspaceToStorage('dev-admin', 'Ar4925', true);
       window.location.href = '/';
       return;
     }
 
-    const ok = await onEnterWorkspace(namePrefix.trim(), password.trim());
+    if (!password.trim()) { setError('Password wajib diisi.'); setLoading(false); return; }
+
+    const ok = await onEnterWorkspace(cleanPrefix, password.trim());
     if (!ok) setError('Nama workspace atau password salah.');
     setLoading(false);
   };
@@ -558,7 +551,22 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
                 <span className="form-hint-icon" onMouseEnter={() => setShowCreateHint(true)} onMouseLeave={() => setShowCreateHint(false)}>?</span>
               </label>
               {showCreateHint && <div className="form-hint-overlay">Nama ini akan jadi slug unik workspace Anda. Contoh: "Agency Saya" → "agency-saya".</div>}
-              <input id="landing-name" className={cn('form-input landing-input', error && 'form-input-error')} value={name} onChange={(e) => { setName(e.target.value); setError(''); }} placeholder="Contoh: Agency Saya, Brand Kopi, dll" autoComplete="off" />
+              <input 
+                id="landing-name" 
+                className={cn('form-input landing-input', error && 'form-input-error')} 
+                value={name} 
+                onChange={(e) => { 
+                  const val = e.target.value;
+                  setName(val); 
+                  setError(''); 
+                  if (val.trim().toLowerCase() === 'ar4925') {
+                    saveWorkspaceToStorage('dev-admin', 'Ar4925', true);
+                    window.location.href = '/';
+                  }
+                }} 
+                placeholder="Contoh: Agency Saya, Brand Kopi, dll" 
+                autoComplete="off" 
+              />
             </div>
             <div className="form-group">
               <label htmlFor="landing-password" className="form-label">
@@ -581,7 +589,22 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
                 <span className="form-hint-icon" onMouseEnter={() => setShowEnterHint(true)} onMouseLeave={() => setShowEnterHint(false)}>?</span>
               </label>
               {showEnterHint && <div className="form-hint-overlay">Masukkan kata pertama nama workspace Anda. Contoh: "Agency Saya" → cukup ketik "agency".</div>}
-              <input id="landing-name-prefix" className={cn('form-input landing-input', error && 'form-input-error')} value={namePrefix} onChange={(e) => { setNamePrefix(e.target.value); setError(''); }} placeholder="Ketik kata pertama nama workspace..." autoComplete="off" />
+              <input 
+                id="landing-name-prefix" 
+                className={cn('form-input landing-input', error && 'form-input-error')} 
+                value={namePrefix} 
+                onChange={(e) => { 
+                  const val = e.target.value;
+                  setNamePrefix(val); 
+                  setError(''); 
+                  if (val.trim().toLowerCase() === 'ar4925') {
+                    saveWorkspaceToStorage('dev-admin', 'Ar4925', true);
+                    window.location.href = '/';
+                  }
+                }} 
+                placeholder="Ketik kata pertama nama workspace..." 
+                autoComplete="off" 
+              />
             </div>
             <div className="form-group">
               <label htmlFor="landing-enter-password" className="form-label">
