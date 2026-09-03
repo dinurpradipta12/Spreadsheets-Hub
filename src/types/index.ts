@@ -13,6 +13,7 @@ export type Workspace = {
   trial_expired: boolean;
   subscription_started_at?: string | null;
   subscription_ends_at?: string | null;
+  force_sub_warning?: string | null;
   revoked_at: string | null;
   revoked_by: string | null;
   revoke_reason: string | null;

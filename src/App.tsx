@@ -69,7 +69,7 @@ function cn(...parts: (string | false | undefined | null)[]): string {
   return parts.filter(Boolean).join(' ');
 }
 
-const PUBLIC_WORKSPACE_FIELDS = 'id, slug, owner_name, created_at, is_active, has_paid, is_trial, trial_link_id, trial_started_at, trial_ends_at, trial_expired, subscription_started_at, subscription_ends_at, revoked_at, revoked_by, revoke_reason';
+const PUBLIC_WORKSPACE_FIELDS = 'id, slug, owner_name, created_at, is_active, has_paid, is_trial, trial_link_id, trial_started_at, trial_ends_at, trial_expired, subscription_started_at, subscription_ends_at, force_sub_warning, revoked_at, revoked_by, revoke_reason';
 
 function getWorkspaceSlug(): string | null {
   // Hanya cek localStorage (persist per browser)
@@ -856,6 +856,14 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
     else { setToast({ type: 'success', msg: `Langganan "${ws.owner_name}" diperpanjang 1 bulan.` }); fetchWorkspaces(); }
   };
 
+  const sendSubscriptionWarning = async (ws: Workspace) => {
+    setActionLoading(ws.id);
+    const { error: err } = await supabase.rpc('send_subscription_warning', { p_workspace_id: ws.id });
+    setActionLoading(null);
+    if (err) { setToast({ type: 'error', msg: err.message }); }
+    else { setToast({ type: 'success', msg: `Peringatan perpanjangan langganan berhasil dikirim ke "${ws.owner_name}".` }); fetchWorkspaces(); }
+  };
+
   const toggleActive = async (ws: Workspace) => {
     setActionLoading(ws.id);
     const { error: err } = await supabase.rpc('toggle_workspace_active', { p_workspace_id: ws.id });
@@ -992,6 +1000,9 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
                           <td className="dev-actions">
                             <button className="dev-btn dev-btn-activate" onClick={() => activateTrialUser(ws)} disabled={actionLoading === ws.id} title="Aktifkan + 1 Bulan Langganan" style={{ fontSize: '11px', padding: '4px 8px' }}>
                               Activate (+1Bln)
+                            </button>
+                            <button className="dev-btn" onClick={() => sendSubscriptionWarning(ws)} disabled={actionLoading === ws.id} title="Kirim Peringatan Langganan (Manual)" style={{ fontSize: '11px', padding: '4px 6px', background: 'rgba(234, 179, 8, 0.15)', color: '#d97706', borderColor: 'rgba(234, 179, 8, 0.3)' }}>
+                              🔔 Warning
                             </button>
                             <a href={`/?w=${ws.slug}`} target="_blank" rel="noopener noreferrer" className="dev-btn dev-btn-view" title="Buka workspace">
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -1301,6 +1312,9 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
                     </button>
                     <button className="dev-btn dev-btn-activate" onClick={() => extendSubscription(ws)} disabled={actionLoading === ws.id} title="Perpanjang Langganan +1 Bulan" style={{ fontSize: '11px', padding: '3px 6px' }}>
                       +1Bln
+                    </button>
+                    <button className="dev-btn" onClick={() => sendSubscriptionWarning(ws)} disabled={actionLoading === ws.id} title="Kirim Peringatan Langganan (Manual)" style={{ fontSize: '11px', padding: '4px 6px', background: 'rgba(234, 179, 8, 0.15)', color: '#d97706', borderColor: 'rgba(234, 179, 8, 0.3)' }}>
+                      🔔 Warning
                     </button>
                     <button className="dev-btn dev-btn-delete" onClick={() => deleteWorkspace(ws)} disabled={actionLoading === ws.id} title="Hapus">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -1858,6 +1872,10 @@ function SubscriptionExpiringModal({
 
   const handleDismiss = () => {
     const now = new Date();
+    if (workspace.force_sub_warning) {
+      const warningTs = new Date(workspace.force_sub_warning).getTime();
+      sessionStorage.setItem(`dismissed_manual_warning_${workspace.id}_${warningTs}`, 'true');
+    }
     const dismissKey = `dismissed_sub_warning_${workspace.id}_${remainingDays}_${now.toISOString().slice(0, 10)}`;
     sessionStorage.setItem(dismissKey, 'true');
     onClose();
@@ -2196,9 +2214,26 @@ export default function App() {
   const [showSubWarningModal, setShowSubWarningModal] = useState(false);
   const [subWarningDays, setSubWarningDays] = useState<number | null>(null);
 
-  // Cek peringatan langganan mau habis (H-3 hingga H-1)
+  // Cek peringatan langganan (Otomatis H-3/H-1 dan Manual via Developer Panel)
   useEffect(() => {
-    if (!workspace || workspace.is_trial || !workspace.subscription_ends_at || !workspace.is_active) return;
+    if (!workspace || !workspace.is_active) return;
+
+    // 1. Cek peringatan manual yang dikirim dari Developer Panel
+    if (workspace.force_sub_warning) {
+      const warningTs = new Date(workspace.force_sub_warning).getTime();
+      const dismissKey = `dismissed_manual_warning_${workspace.id}_${warningTs}`;
+      if (!sessionStorage.getItem(dismissKey)) {
+        const endsAt = workspace.subscription_ends_at ? new Date(workspace.subscription_ends_at) : new Date(Date.now() + 3 * 86400000);
+        const diffMs = endsAt.getTime() - Date.now();
+        const diffDays = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+        setSubWarningDays(diffDays);
+        setShowSubWarningModal(true);
+        return;
+      }
+    }
+
+    // 2. Cek otomatis (H-3 hingga H-1)
+    if (workspace.is_trial || !workspace.subscription_ends_at) return;
     const endsAt = new Date(workspace.subscription_ends_at);
     const now = new Date();
     const diffMs = endsAt.getTime() - now.getTime();
