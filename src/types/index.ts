@@ -40,6 +40,8 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   trial_duration_hours: '36',
   app_name: 'Spreadsheets Hub Manager',
   app_description: 'Spreadsheets Management by Dinur Pradipta',
+  payment_amount: 'Rp 150.000',
+  payment_note: 'Total Pembayaran',
 };
 
 export type ContentPlanSheet = {

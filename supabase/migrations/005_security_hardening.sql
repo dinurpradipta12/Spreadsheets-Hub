@@ -38,15 +38,33 @@ CREATE POLICY "Block direct workspace delete"
   FOR DELETE
   USING (false);
 
--- 2. Amankan tabel app_settings — hanya read
+-- 2. Amankan tabel app_settings
 DROP POLICY IF EXISTS "Anyone can update app_settings" ON public.app_settings;
 DROP POLICY IF EXISTS "Anyone can insert app_settings" ON public.app_settings;
 DROP POLICY IF EXISTS "Public read app_settings" ON public.app_settings;
+DROP POLICY IF EXISTS "Allow insert app_settings" ON public.app_settings;
+DROP POLICY IF EXISTS "Allow update app_settings" ON public.app_settings;
 
 CREATE POLICY "Public read app_settings"
   ON public.app_settings
   FOR SELECT
   USING (true);
+
+CREATE POLICY "Allow insert app_settings"
+  ON public.app_settings
+  FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Allow update app_settings"
+  ON public.app_settings
+  FOR UPDATE
+  USING (true)
+  WITH CHECK (true);
+
+INSERT INTO public.app_settings (key, value) VALUES
+  ('payment_amount', 'Rp 150.000'),
+  ('payment_note', 'Total Pembayaran')
+ON CONFLICT (key) DO NOTHING;
 
 -- 3. Amankan tabel trial_links — hanya read
 DROP POLICY IF EXISTS "Anyone can create trial links" ON public.trial_links;

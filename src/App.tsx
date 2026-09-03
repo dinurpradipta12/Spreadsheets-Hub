@@ -1073,6 +1073,16 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
               <p className="form-hint">Default durasi trial untuk link baru. Min 12, Max 72 jam.</p>
             </div>
             <div className="form-group">
+              <label className="form-label">Nominal Pembayaran (Harga Transfer)</label>
+              <input className="form-input" value={settingsForm.payment_amount ?? ''} onChange={(e) => setSettingsForm((p) => ({ ...p, payment_amount: e.target.value }))} placeholder="Contoh: Rp 150.000" />
+              <p className="form-hint">Nominal harga transfer yang akan tampil besar di atas QR code pada modal trial expired dan halaman penangguhan.</p>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Keterangan di Atas Nominal</label>
+              <input className="form-input" value={settingsForm.payment_note ?? ''} onChange={(e) => setSettingsForm((p) => ({ ...p, payment_note: e.target.value }))} placeholder="Contoh: Total Pembayaran / Biaya Aktivasi" />
+              <p className="form-hint">Teks label kecil yang muncul tepat di atas angka nominal.</p>
+            </div>
+            <div className="form-group">
               <label className="form-label">App Name</label>
               <input className="form-input" value={settingsForm.app_name ?? ''} onChange={(e) => setSettingsForm((p) => ({ ...p, app_name: e.target.value }))} placeholder="Spreadsheets Hub Manager" />
             </div>
@@ -1517,12 +1527,14 @@ function DeleteModal({ open, onClose, sheet, onSuccess, toast }: {
 // ─── Trial Locked Page (setelah acknowledge modal) ─────────────────
 function TrialLockedPage({ workspace, trialExpiresAt }: { workspace: Workspace; trialExpiresAt?: string }) {
   const [waNumber, setWaNumber] = useState(WHATSAPP_NUMBER);
+  const [settings, setSettings] = useState<Record<string, string>>({});
   const [reactivated, setReactivated] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const settings = await loadAppSettings();
-      setWaNumber(settings.whatsapp_number || WHATSAPP_NUMBER);
+      const s = await loadAppSettings();
+      setSettings(s);
+      setWaNumber(s.whatsapp_number || WHATSAPP_NUMBER);
     })();
   }, []);
 
@@ -1543,7 +1555,9 @@ function TrialLockedPage({ workspace, trialExpiresAt }: { workspace: Workspace; 
     return () => { supabase.removeChannel(channel); };
   }, [workspace, reactivated]);
 
-  const waText = `Halo, saya ${workspace.owner_name}. Trial saya sudah berakhir.`;
+  const paymentAmount = settings.payment_amount || DEFAULT_SETTINGS.payment_amount || 'Rp 150.000';
+  const paymentNote = settings.payment_note || DEFAULT_SETTINGS.payment_note || 'Total Pembayaran';
+  const waText = `Halo, saya ${workspace.owner_name}. Masa trial saya sudah berakhir dan saya ingin konfirmasi pembayaran ${paymentAmount} untuk mengaktifkan akun.`;
   const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`;
   const expiredDate = trialExpiresAt
     ? new Date(trialExpiresAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -1581,6 +1595,10 @@ function TrialLockedPage({ workspace, trialExpiresAt }: { workspace: Workspace; 
           </div>
         </div>
         <div className="trial-expired-right">
+          <div className="trial-payment-header">
+            <span className="trial-payment-keterangan">{paymentNote}</span>
+            <div className="trial-payment-nominal">{paymentAmount}</div>
+          </div>
           <img src={qrImg} alt="QR Pembayaran" className="trial-qr-img" />
         </div>
       </div>
@@ -1591,11 +1609,13 @@ function TrialLockedPage({ workspace, trialExpiresAt }: { workspace: Workspace; 
 // ─── Revoked Page (workspace dinonaktifkan) ────────────────────────
 function RevokedPage({ workspace }: { workspace: Workspace }) {
   const [waNumber, setWaNumber] = useState(WHATSAPP_NUMBER);
+  const [settings, setSettings] = useState<Record<string, string>>({});
 
   useEffect(() => {
     (async () => {
-      const settings = await loadAppSettings();
-      setWaNumber(settings.whatsapp_number || WHATSAPP_NUMBER);
+      const s = await loadAppSettings();
+      setSettings(s);
+      setWaNumber(s.whatsapp_number || WHATSAPP_NUMBER);
     })();
   }, []);
 
@@ -1613,8 +1633,10 @@ function RevokedPage({ workspace }: { workspace: Workspace }) {
   }, [workspace.id]);
 
   const isTrialExpired = workspace.is_trial || workspace.trial_expired;
+  const paymentAmount = settings.payment_amount || DEFAULT_SETTINGS.payment_amount || 'Rp 150.000';
+  const paymentNote = settings.payment_note || DEFAULT_SETTINGS.payment_note || 'Total Pembayaran';
   const waText = isTrialExpired 
-    ? `Halo, saya pemilik workspace ${workspace.owner_name}. Masa limit trial saya sudah habis dan saya ingin melakukan pembayaran untuk mengaktifkan akun.`
+    ? `Halo, saya pemilik workspace ${workspace.owner_name}. Masa limit trial saya sudah habis dan saya ingin melakukan pembayaran ${paymentAmount} untuk mengaktifkan akun.`
     : `Halo, saya pemilik workspace ${workspace.owner_name}. Akun saya dinonaktifkan dan saya ingin mengaktifkannya kembali.`;
   const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`;
 
@@ -1650,6 +1672,10 @@ function RevokedPage({ workspace }: { workspace: Workspace }) {
             </div>
           </div>
           <div className="trial-expired-right">
+            <div className="trial-payment-header">
+              <span className="trial-payment-keterangan">{paymentNote}</span>
+              <div className="trial-payment-nominal">{paymentAmount}</div>
+            </div>
             <img src={qrImg} alt="QR Pembayaran" className="trial-qr-img" />
           </div>
         </div>
@@ -1681,15 +1707,19 @@ function RevokedPage({ workspace }: { workspace: Workspace }) {
 // ─── Trial Locked Page (trial expired) ─────────────────────────────
 function TrialExpiredModal({ workspace, trialExpiresAt, onAcknowledge }: { workspace: Workspace; trialExpiresAt?: string; onAcknowledge: () => void }) {
   const [waNumber, setWaNumber] = useState(WHATSAPP_NUMBER);
+  const [settings, setSettings] = useState<Record<string, string>>({});
 
   useEffect(() => {
     (async () => {
-      const settings = await loadAppSettings();
-      setWaNumber(settings.whatsapp_number || WHATSAPP_NUMBER);
+      const s = await loadAppSettings();
+      setSettings(s);
+      setWaNumber(s.whatsapp_number || WHATSAPP_NUMBER);
     })();
   }, []);
 
-  const waText = `Halo, saya ${workspace.owner_name}. Trial saya sudah berakhir.`;
+  const paymentAmount = settings.payment_amount || DEFAULT_SETTINGS.payment_amount || 'Rp 150.000';
+  const paymentNote = settings.payment_note || DEFAULT_SETTINGS.payment_note || 'Total Pembayaran';
+  const waText = `Halo, saya ${workspace.owner_name}. Masa trial saya sudah berakhir dan saya ingin konfirmasi pembayaran ${paymentAmount} untuk mengaktifkan akun.`;
   const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`;
   const expiredDate = trialExpiresAt
     ? new Date(trialExpiresAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -1729,6 +1759,10 @@ function TrialExpiredModal({ workspace, trialExpiresAt, onAcknowledge }: { works
           </div>
         </div>
         <div className="trial-expired-right">
+          <div className="trial-payment-header">
+            <span className="trial-payment-keterangan">{paymentNote}</span>
+            <div className="trial-payment-nominal">{paymentAmount}</div>
+          </div>
           <img src={qrImg} alt="QR Pembayaran" className="trial-qr-img" />
         </div>
       </div>
