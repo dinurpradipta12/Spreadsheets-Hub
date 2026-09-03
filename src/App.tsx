@@ -1689,12 +1689,17 @@ function RevokedPage({ workspace }: { workspace: Workspace }) {
     })();
   }, []);
 
-  // Auto-refresh — cek apakah workspace sudah diaktifkan
+  // Auto-refresh — cek apakah workspace sudah diaktifkan kembali oleh developer
   useEffect(() => {
     const check = async () => {
       const { data } = await supabase.from('workspaces').select(PUBLIC_WORKSPACE_FIELDS).eq('id', workspace.id).single();
-      if (data && (data as Workspace).is_active) {
-        window.location.reload();
+      if (data) {
+        const ws = data as Workspace;
+        const subStillExpired = ws.subscription_ends_at ? new Date(ws.subscription_ends_at) < new Date() : false;
+        // Hanya reload jika workspace sudah aktif DAN langganan tidak expired
+        if (ws.is_active && !subStillExpired) {
+          window.location.reload();
+        }
       }
     };
     check();
@@ -1703,15 +1708,29 @@ function RevokedPage({ workspace }: { workspace: Workspace }) {
   }, [workspace.id]);
 
   const isTrialExpired = workspace.is_trial || workspace.trial_expired;
+  const isSubscriptionExpired = !isTrialExpired && workspace.subscription_ends_at ? new Date(workspace.subscription_ends_at) < new Date() : false;
+  const needsPaymentPage = isTrialExpired || isSubscriptionExpired;
   const paymentAmount = settings.payment_amount || DEFAULT_SETTINGS.payment_amount || 'Rp 150.000';
   const paymentNote = settings.payment_note || DEFAULT_SETTINGS.payment_note || 'Total Pembayaran';
-  const waText = isTrialExpired 
+
+  const statusLabel = isTrialExpired ? 'Trial Limit Habis' : 'Langganan Habis';
+  const titleText = isTrialExpired ? 'Akses Ditangguhkan' : 'Akun Tidak Bisa Digunakan';
+  const subtitleText = isTrialExpired
+    ? <>Masa limit trial workspace <strong>{workspace.owner_name}</strong> telah habis.</>
+    : <>Masa langganan workspace <strong>{workspace.owner_name}</strong> telah berakhir. Silakan selesaikan pembayaran untuk membuka kembali akses.</>;
+  const waText = isTrialExpired
     ? `Halo, saya pemilik workspace ${workspace.owner_name}. Masa limit trial saya sudah habis dan saya ingin melakukan pembayaran ${paymentAmount} untuk mengaktifkan akun.`
-    : `Halo, saya pemilik workspace ${workspace.owner_name}. Akun saya dinonaktifkan dan saya ingin mengaktifkannya kembali.`;
+    : isSubscriptionExpired
+      ? `Halo, saya pemilik workspace ${workspace.owner_name}. Masa langganan saya sudah habis dan saya ingin melakukan pembayaran ${paymentAmount} untuk memperpanjang langganan.`
+      : `Halo, saya pemilik workspace ${workspace.owner_name}. Akun saya dinonaktifkan dan saya ingin mengaktifkannya kembali.`;
   const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`;
 
-  // Khusus akun yang limit trial habis — tampilkan layout 2 kolom dengan QR pembayaran & tombol WhatsApp
-  if (isTrialExpired) {
+  const expiredDateText = isSubscriptionExpired && workspace.subscription_ends_at
+    ? new Date(workspace.subscription_ends_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null;
+
+  // Akun yang memerlukan pembayaran (trial habis / langganan habis) — tampilkan layout 2 kolom dengan QR
+  if (needsPaymentPage) {
     return (
       <div className="revoked-page">
         <div className="trial-modal-content trial-locked-modal trial-expired-2col">
@@ -1719,18 +1738,27 @@ function RevokedPage({ workspace }: { workspace: Workspace }) {
             <div className="trial-locked-icon">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>
             </div>
-            <h2>Akses Ditangguhkan</h2>
-            <p className="trial-locked-subtitle">Masa limit trial workspace <strong>{workspace.owner_name}</strong> telah habis.</p>
+            <h2>{titleText}</h2>
+            <p className="trial-locked-subtitle">{subtitleText}</p>
             <div className="trial-locked-info">
               <div className="trial-locked-row">
                 <span className="trial-locked-label">Status</span>
-                <span className="trial-locked-status">Trial Limit Habis</span>
+                <span className="trial-locked-status">{statusLabel}</span>
               </div>
               <div className="trial-locked-divider" />
               <div className="trial-locked-row">
                 <span className="trial-locked-label">Workspace</span>
                 <span className="trial-locked-value">{workspace.owner_name}</span>
               </div>
+              {expiredDateText && (
+                <>
+                  <div className="trial-locked-divider" />
+                  <div className="trial-locked-row">
+                    <span className="trial-locked-label">Berakhir pada</span>
+                    <span className="trial-locked-value">{expiredDateText}</span>
+                  </div>
+                </>
+              )}
             </div>
             <p className="trial-locked-hint">Silakan scan QR di samping untuk pembayaran dan kirimkan bukti ke WhatsApp agar akun langsung diaktifkan kembali.</p>
             <div className="trial-locked-actions">
@@ -2026,6 +2054,13 @@ export default function App() {
         }
       }
 
+      // Cek langganan habis — otomatis revoke workspace
+      if (ws.subscription_ends_at && new Date(ws.subscription_ends_at) < new Date() && ws.is_active) {
+        await supabase.rpc('auto_revoke_expired_subscription', { p_workspace_id: ws.id });
+        ws.is_active = false;
+        ws.revoke_reason = 'Masa langganan habis. Silakan selesaikan pembayaran untuk membuka kembali akses.';
+      }
+
       if (!ws.is_active) { setWorkspace(ws); setWsLoading(false); setWorkspaceChecked(true); return; }
       setWorkspace(ws);
       setWsLoading(false);
@@ -2254,8 +2289,7 @@ export default function App() {
   }
 
   // Revoked / Expired workspace — jika tidak aktif ATAU masa berlangganan sudah habis
-  const isSubExpired = workspace?.subscription_ends_at ? new Date(workspace.subscription_ends_at) < new Date() : false;
-  if (workspace && (!workspace.is_active || isSubExpired)) {
+  if (workspace && !workspace.is_active) {
     return <RevokedPage workspace={workspace} />;
   }
 
