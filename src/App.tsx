@@ -72,12 +72,21 @@ function cn(...parts: (string | false | undefined | null)[]): string {
 const PUBLIC_WORKSPACE_FIELDS = 'id, slug, owner_name, created_at, is_active, has_paid, is_trial, trial_link_id, trial_started_at, trial_ends_at, trial_expired, subscription_started_at, subscription_ends_at, force_sub_warning, revoked_at, revoked_by, revoke_reason';
 
 function getWorkspaceSlug(): string | null {
-  // Hanya cek localStorage (persist per browser)
   try {
+    // 1. Cek parameter URL ?w=slug terlebih dahulu
+    const params = new URLSearchParams(window.location.search);
+    const urlSlug = params.get('w');
+    if (urlSlug) {
+      if (urlSlug === '__dev__') return '__dev__';
+      saveWorkspaceToStorage(urlSlug, urlSlug);
+      return urlSlug;
+    }
+
+    // 2. Fallback ke localStorage (permanen per browser)
     const saved = localStorage.getItem('spreadsheets-hub-workspace');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (parsed.slug && parsed.ts && Date.now() - parsed.ts < 30 * 24 * 60 * 60 * 1000) {
+      if (parsed.slug) {
         if (parsed.isDev) return '__dev__';
         return parsed.slug;
       }
@@ -2262,6 +2271,8 @@ export default function App() {
 
       if (!ws.is_active) { setWorkspace(ws); setWsLoading(false); setWorkspaceChecked(true); return; }
       setWorkspace(ws);
+      saveWorkspaceToStorage(ws.slug, ws.owner_name);
+      try { window.history.replaceState(null, '', `/?w=${ws.slug}`); } catch {}
       setWsLoading(false);
       setWorkspaceChecked(true);
     })();
@@ -2363,9 +2374,10 @@ export default function App() {
     });
     if (err || !data || (data as any[]).length === 0) return false;
     const ws = (data as Workspace[])[0];
+    saveWorkspaceToStorage(ws.slug, ws.owner_name);
+    try { window.history.replaceState(null, '', `/?w=${ws.slug}`); } catch {}
     if (!ws.is_active) { setWorkspace(ws); setWsLoading(false); setWorkspaceChecked(true); return true; }
     setWorkspace(ws);
-    saveWorkspaceToStorage(ws.slug, ws.owner_name);
     setWsLoading(false);
     setWorkspaceChecked(true);
     return true;
