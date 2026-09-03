@@ -468,7 +468,7 @@ function DevAccessModal({ onClose }: { onClose: () => void }) {
               className={cn('form-input', error && 'form-input-error')}
               value={devKey}
               onChange={(e) => { setDevKey(e.target.value); setError(''); }}
-              placeholder="Masukkan kata kunci (Ar4925)..."
+              placeholder="Masukkan kata kunci rahasia..."
               autoFocus
             />
             {error && <p className="form-error" style={{ marginTop: 6 }}>{error}</p>}
@@ -508,7 +508,7 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
   const clickCount = useRef(0);
   const handleLogoClick = () => {
     clickCount.current += 1;
-    if (clickCount.current === 2) {
+    if (clickCount.current === 3) {
       clickCount.current = 0;
       if (clickTimer.current) clearTimeout(clickTimer.current);
       setShowDevModal(true);
@@ -516,7 +516,7 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
       if (clickTimer.current) clearTimeout(clickTimer.current);
       clickTimer.current = setTimeout(() => {
         clickCount.current = 0;
-      }, 400);
+      }, 500);
     }
   };
 
@@ -605,9 +605,6 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
           alt="Logo"
           className="landing-logo"
           onClick={handleLogoClick}
-          onDoubleClick={() => setShowDevModal(true)}
-          style={{ cursor: 'pointer' }}
-          title="Klik 2x untuk Akses Developer"
         />
         <h1>Spreadsheets Hub Manager</h1>
         <p>Spreadsheets Management by Dinur Pradipta</p>
