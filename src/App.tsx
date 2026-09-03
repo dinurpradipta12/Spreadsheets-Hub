@@ -2253,8 +2253,9 @@ export default function App() {
     return <DeveloperPanel onExit={() => { clearWorkspaceFromStorage(); window.location.href = '/'; }} />;
   }
 
-  // Revoked workspace — tapi cek dulu apakah sudah diaktifkan
-  if (workspace && !workspace.is_active) {
+  // Revoked / Expired workspace — jika tidak aktif ATAU masa berlangganan sudah habis
+  const isSubExpired = workspace?.subscription_ends_at ? new Date(workspace.subscription_ends_at) < new Date() : false;
+  if (workspace && (!workspace.is_active || isSubExpired)) {
     return <RevokedPage workspace={workspace} />;
   }
 
