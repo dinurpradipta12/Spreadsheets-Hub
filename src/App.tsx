@@ -451,8 +451,13 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
         .single();
       if (!err && data) {
         const tl = data as TrialLink;
-        const mins = tl.trial_duration_minutes ?? tl.trial_duration_hours ?? 36;
-        setTrialDurationHours(mins < 60 ? mins / 60 : mins);
+        let hours = 36;
+        if (tl.trial_duration_minutes != null && tl.trial_duration_minutes > 0) {
+          hours = tl.trial_duration_minutes / 60;
+        } else if (tl.trial_duration_hours != null) {
+          hours = tl.trial_duration_hours;
+        }
+        setTrialDurationHours(hours);
       } else {
         setTrialDurationHours(36);
       }
