@@ -2066,8 +2066,8 @@ function TutorialModal({ onClose }: { onClose: () => void }) {
             <div className="tutorial-step-list">
               <div className="tutorial-step-item">
                 <span className="step-badge">Langkah 1</span>
-                <h4>Dapatkan Link Google Sheet Anda</h4>
-                <p>Buka file Google Sheets Anda. Di menu atas, pilih <strong>File &gt; Bagikan &gt; Publikasikan ke Web</strong> lalu klik <strong>Publikasikan</strong> dan salin link-nya. <em>(Atau bisa langsung menyalin URL Google Sheet reguler Anda dari address bar browser).</em></p>
+                <h4>Salin URL Google Sheet Anda</h4>
+                <p>Buka file Google Sheets Anda di browser, lalu <strong>salin (copy) langsung link URL dari address bar browser</strong> (contoh: <code>https://docs.google.com/spreadsheets/d/.../edit</code>). Sangat mudah dan praktis!</p>
               </div>
               <div className="tutorial-step-item">
                 <span className="step-badge">Langkah 2</span>
@@ -2128,7 +2128,7 @@ function TutorialModal({ onClose }: { onClose: () => void }) {
             <div className="tutorial-faq-list">
               <div className="faq-item">
                 <h4>Q: Kenapa Sheet saya kosong / tidak muncul?</h4>
-                <p>Pastikan pengaturan akses Google Sheet Anda sudah diubah menjadi <strong>"Siapa saja yang memiliki link"</strong> (Anyone with the link) atau sudah dipublikasikan melalui menu <em>File &gt; Bagikan &gt; Publikasikan ke Web</em>.</p>
+                <p>Pastikan pengaturan akses Google Sheet Anda sudah diubah menjadi <strong>"Siapa saja yang memiliki link"</strong> (Anyone with the link) agar spreadsheet dapat ditampilkan di dashboard.</p>
               </div>
               <div className="faq-item">
                 <h4>Q: Apakah data di spreadsheet aman?</h4>
