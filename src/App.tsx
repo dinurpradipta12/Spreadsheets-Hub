@@ -637,7 +637,7 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
 
 // ─── Developer Panel ───────────────────────────────────────────────
 function DeveloperPanel({ onExit }: { onExit: () => void }) {
-  const [tab, setTab] = useState<'admin' | 'app' | 'trials' | 'settings'>('admin');
+  const [tab, setTab] = useState<'admin' | 'trial_users' | 'app' | 'trials' | 'settings'>('admin');
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -896,7 +896,10 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="dev-tab-toggle">
-            <button className={cn('dev-tab-btn', tab === 'admin' && 'dev-tab-btn-active')} onClick={() => setTab('admin')}>Admin</button>
+            <button className={cn('dev-tab-btn', tab === 'admin' && 'dev-tab-btn-active')} onClick={() => setTab('admin')}>Workspaces</button>
+            <button className={cn('dev-tab-btn', tab === 'trial_users' && 'dev-tab-btn-active')} onClick={() => setTab('trial_users')}>
+              Trial Users {workspaces.filter(w => w.is_trial).length > 0 && `(${workspaces.filter(w => w.is_trial).length})`}
+            </button>
             <button className={cn('dev-tab-btn', tab === 'trials' && 'dev-tab-btn-active')} onClick={() => setTab('trials')}>Trial Links</button>
             <button className={cn('dev-tab-btn', tab === 'app' && 'dev-tab-btn-active')} onClick={() => setTab('app')}>Sheets Hub</button>
             <button className={cn('dev-tab-btn', tab === 'settings' && 'dev-tab-btn-active')} onClick={() => setTab('settings')}>Settings</button>
@@ -914,8 +917,98 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
         </div>
       </div>
 
+      {/* ─── Summary Cards (At the Very Top) ─── */}
+      <div className="dev-summary" style={{ marginTop: 16, marginBottom: 20 }}>
+        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.length}</span><span>Total Workspace</span></div>
+        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => w.is_active).length}</span><span>Active</span></div>
+        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => !w.is_active).length}</span><span>Revoked / Expired</span></div>
+        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => w.has_paid).length}</span><span>Paid</span></div>
+        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => w.is_trial).length}</span><span>Trial Users</span></div>
+      </div>
+
       {tab === 'app' ? (
         <DevSheetsHub onExit={onExit} onBackToAdmin={() => setTab('admin')} />
+      ) : tab === 'trial_users' ? (
+        <>
+          {/* ─── Trial Users Tab ─── */}
+          <div className="dev-toolbar">
+            <input className="form-input dev-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari user trial..." />
+            <button className="btn-outline" onClick={fetchWorkspaces}>Refresh</button>
+          </div>
+
+          {(() => {
+            const trialUsers = filtered.filter((w) => w.is_trial);
+            if (trialUsers.length === 0) {
+              return <div className="dev-empty"><p>Belum ada user trial.</p></div>;
+            }
+            return (
+              <div className="dev-table-wrap">
+                <table className="dev-table">
+                  <thead>
+                    <tr>
+                      <th>Workspace</th>
+                      <th>Slug</th>
+                      <th>Mulai Trial</th>
+                      <th>Batas Trial</th>
+                      <th>Status Trial</th>
+                      <th>Langganan Bulanan</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trialUsers.map((ws) => {
+                      const trialLink = trialLinks.find((tl) => tl.id === ws.trial_link_id);
+                      const perUserEndsAt = ws.trial_ends_at || (trialLink ? trialLink.expires_at : null);
+                      const isExpired = ws.trial_expired || (perUserEndsAt ? new Date(perUserEndsAt) < new Date() : false);
+                      const isActive = ws.is_active && !isExpired;
+                      const subEnd = ws.subscription_ends_at ? new Date(ws.subscription_ends_at) : null;
+
+                      return (
+                        <tr key={ws.id} className={!isActive ? 'dev-row-inactive' : ''}>
+                          <td><strong>{ws.owner_name}</strong></td>
+                          <td><code>{ws.slug}</code></td>
+                          <td>{ws.trial_started_at ? new Date(ws.trial_started_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                          <td>
+                            {perUserEndsAt ? (
+                              <>
+                                {new Date(perUserEndsAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                <br />
+                                <TrialCountdown endTime={perUserEndsAt} />
+                              </>
+                            ) : '—'}
+                          </td>
+                          <td>
+                            <span className={cn('dev-status', isActive ? 'dev-status-active' : 'dev-status-expired')}>
+                              {isActive ? 'Active' : 'Expired'}
+                            </span>
+                          </td>
+                          <td>
+                            {subEnd ? (
+                              <small style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
+                                s/d {subEnd.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </small>
+                            ) : <span style={{ color: 'var(--muted)' }}>Belum Berlangganan</span>}
+                          </td>
+                          <td className="dev-actions">
+                            <button className="dev-btn dev-btn-activate" onClick={() => activateTrialUser(ws)} disabled={actionLoading === ws.id} title="Aktifkan + 1 Bulan Langganan" style={{ fontSize: '11px', padding: '4px 8px' }}>
+                              Activate (+1Bln)
+                            </button>
+                            <a href={`/?w=${ws.slug}`} target="_blank" rel="noopener noreferrer" className="dev-btn dev-btn-view" title="Buka workspace">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            </a>
+                            <button className="dev-btn dev-btn-delete" onClick={() => deleteWorkspace(ws)} disabled={actionLoading === ws.id} title="Hapus">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </>
       ) : tab === 'trials' ? (
         <>
       {/* ─── Trial Links Tab ─── */}
@@ -1221,94 +1314,15 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
         </div>
       )}
 
-      {/* Summary */}
-      <div className="dev-summary">
-        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.length}</span><span>Total Workspace</span></div>
-        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => w.is_active).length}</span><span>Active</span></div>
-        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => !w.is_active).length}</span><span>Revoked</span></div>
-        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => w.has_paid).length}</span><span>Paid</span></div>
-      </div>
-
       {toast && (
         <div className={cn('dev-toast', toast.type === 'error' ? 'dev-toast-error' : 'dev-toast-success')} role="alert">
           {toast.msg}
         </div>
       )}
-
-      {/* ─── Trial Users Section ─── */}
-      <div className="dev-trial-users-section">
-        <h3>Trial Users</h3>
-        {(() => {
-          const trialUsers = workspaces.filter((w) => w.is_trial);
-          if (trialUsers.length === 0) {
-            return <p className="dev-hint">Belum ada user trial.</p>;
-          }
-          return (
-            <div className="dev-table-wrap">
-              <table className="dev-table">
-                <thead>
-                  <tr>
-                    <th>Workspace</th>
-                    <th>Slug</th>
-                    <th>Trial Status</th>
-                    <th>Payment</th>
-                    <th>Expires At</th>
-                    <th>Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {trialUsers.map((ws) => {
-                    const trialLink = trialLinks.find((tl) => tl.id === ws.trial_link_id);
-                    const perUserEndsAt = ws.trial_ends_at || (trialLink ? trialLink.expires_at : null);
-                    const isExpired = ws.trial_expired || (perUserEndsAt ? new Date(perUserEndsAt) < new Date() : false);
-                    const isActive = ws.is_active && !isExpired;
-
-                    return (
-                      <tr key={ws.id} className={!isActive ? 'dev-row-inactive' : ''}>
-                        <td><strong>{ws.owner_name}</strong></td>
-                        <td><code>{ws.slug}</code></td>
-                        <td>
-                          <span className={cn('dev-status', isActive ? 'dev-status-active' : 'dev-status-expired')}>
-                            {isActive ? 'Active' : 'Expired'}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={cn('dev-status', ws.has_paid ? 'dev-status-paid' : 'dev-status-free')}>
-                            {ws.has_paid ? 'Paid' : 'Free'}
-                          </span>
-                        </td>
-                        <td>
-                          {perUserEndsAt ? (
-                            <>
-                              {new Date(perUserEndsAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                              <br />
-                              <TrialCountdown endTime={perUserEndsAt} />
-                            </>
-                          ) : '—'}
-                        </td>
-                        <td className="dev-actions">
-                          {!isActive && (
-                            <button className="dev-btn dev-btn-activate" onClick={() => activateTrialUser(ws)} disabled={actionLoading === ws.id} title="Activate setelah user bayar">
-                              Activate
-                            </button>
-                          )}
-                          <a href={`/?w=${ws.slug}`} target="_blank" rel="noopener noreferrer" className="dev-btn dev-btn-view" title="Buka workspace">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                          </a>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          );
-        })()}
-      </div>
         </>
-  )}
-</div>
-);
+      )}
+    </div>
+  );
 }
 
 // ─── Dev Sheets Hub (mini app inside dev panel) ────────────────────
@@ -1812,6 +1826,92 @@ function TrialExpiredModal({ workspace, trialExpiresAt, onAcknowledge }: { works
   );
 }
 
+// ─── Modal Peringatan H-3 & H-1 Langganan Segera Berakhir ─────────
+function SubscriptionExpiringModal({
+  workspace,
+  remainingDays,
+  onClose,
+}: {
+  workspace: Workspace;
+  remainingDays: number;
+  onClose: () => void;
+}) {
+  const [waNumber, setWaNumber] = useState(WHATSAPP_NUMBER);
+  const [settings, setSettings] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    (async () => {
+      const s = await loadAppSettings();
+      setSettings(s);
+      setWaNumber(s.whatsapp_number || WHATSAPP_NUMBER);
+    })();
+  }, []);
+
+  const paymentAmount = settings.payment_amount || DEFAULT_SETTINGS.payment_amount || 'Rp 150.000 / bulan';
+  const paymentNote = settings.payment_note || DEFAULT_SETTINGS.payment_note || 'Biaya Langganan 1 Bulan';
+  const waText = `Halo, saya pemilik workspace ${workspace.owner_name}. Masa langganan saya sisa ${remainingDays} hari lagi dan saya ingin melakukan perpanjangan ${paymentAmount}.`;
+  const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`;
+
+  const endsDate = workspace.subscription_ends_at
+    ? new Date(workspace.subscription_ends_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—';
+
+  const handleDismiss = () => {
+    const now = new Date();
+    const dismissKey = `dismissed_sub_warning_${workspace.id}_${remainingDays}_${now.toISOString().slice(0, 10)}`;
+    sessionStorage.setItem(dismissKey, 'true');
+    onClose();
+  };
+
+  return (
+    <div className="trial-modal-backdrop">
+      <div className="trial-modal-content trial-expired-modal trial-expired-2col">
+        <div className="trial-expired-left">
+          <div className="trial-expired-icon-wrap" style={{ background: 'rgba(234, 179, 8, 0.15)', color: '#d97706' }}>
+            <svg className="trial-expired-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <h2 style={{ color: '#d97706' }}>Langganan Segera Berakhir!</h2>
+          <p className="trial-expired-subtitle">
+            Workspace <strong>{workspace.owner_name}</strong> akan berakhir dalam <strong style={{ color: '#d97706' }}>{remainingDays} hari lagi</strong>.
+          </p>
+          <div className="trial-expired-card">
+            <div className="trial-expired-row">
+              <span className="trial-expired-label">Sisa Masa Aktif</span>
+              <span className="trial-expired-status" style={{ background: 'rgba(234, 179, 8, 0.15)', color: '#d97706' }}>
+                H-{remainingDays} ({remainingDays} hari lagi)
+              </span>
+            </div>
+            <div className="trial-expired-divider" />
+            <div className="trial-expired-row">
+              <span className="trial-expired-label">Expired pada</span>
+              <span className="trial-expired-value">{endsDate}</span>
+            </div>
+          </div>
+          <p className="trial-expired-hint">Silakan perpanjang sekarang agar akses workspace Anda tidak terputus.</p>
+          <div className="trial-expired-actions">
+            <a href={waUrl} target="_blank" rel="noopener noreferrer" className="btn-whatsapp">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              Perpanjang via WhatsApp
+            </a>
+            <button className="btn-text-close" onClick={handleDismiss}>Nanti Saja (Tutup)</button>
+          </div>
+        </div>
+        <div className="trial-expired-right">
+          <div className="trial-payment-header">
+            <span className="trial-payment-keterangan">{paymentNote}</span>
+            <div className="trial-payment-nominal">{paymentAmount}</div>
+          </div>
+          <img src={qrImg} alt="QR Pembayaran" className="trial-qr-img" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main App ──────────────────────────────────────────────────────
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -2093,18 +2193,24 @@ export default function App() {
     return () => clearInterval(interval);
   }, [workspace]);
 
-  // Cek subscription expired — interval setiap 30 detik
+  const [showSubWarningModal, setShowSubWarningModal] = useState(false);
+  const [subWarningDays, setSubWarningDays] = useState<number | null>(null);
+
+  // Cek peringatan langganan mau habis (H-3 hingga H-1)
   useEffect(() => {
-    if (!workspace || workspace.is_trial || !workspace.subscription_ends_at) return;
-    const checkSubExpiry = () => {
-      if (new Date(workspace.subscription_ends_at!) < new Date()) {
-        // Subscription habis — reload untuk re-check dari database
-        window.location.reload();
+    if (!workspace || workspace.is_trial || !workspace.subscription_ends_at || !workspace.is_active) return;
+    const endsAt = new Date(workspace.subscription_ends_at);
+    const now = new Date();
+    const diffMs = endsAt.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 0 && diffDays <= 3) {
+      const dismissKey = `dismissed_sub_warning_${workspace.id}_${diffDays}_${now.toISOString().slice(0, 10)}`;
+      if (!sessionStorage.getItem(dismissKey)) {
+        setSubWarningDays(diffDays);
+        setShowSubWarningModal(true);
       }
-    };
-    checkSubExpiry();
-    const interval = setInterval(checkSubExpiry, 30000);
-    return () => clearInterval(interval);
+    }
   }, [workspace]);
 
   // Developer panel
@@ -2347,6 +2453,15 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Subscription Expiring Warning Modal (H-3 & H-1) */}
+      {showSubWarningModal && subWarningDays !== null && workspace && (
+        <SubscriptionExpiringModal
+          workspace={workspace}
+          remainingDays={subWarningDays}
+          onClose={() => setShowSubWarningModal(false)}
+        />
       )}
 
       {/* Toasts */}
