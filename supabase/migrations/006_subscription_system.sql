@@ -64,6 +64,8 @@ END;
 $func$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 5. Update authenticate_workspace agar return subscription fields
+DROP FUNCTION IF EXISTS public.authenticate_workspace(text, text);
+
 CREATE OR REPLACE FUNCTION public.authenticate_workspace(p_name TEXT, p_password TEXT)
 RETURNS TABLE (
   id UUID,
