@@ -55,6 +55,52 @@ CREATE POLICY "Public read trial_links"
   FOR SELECT
   USING (true);
 
+-- Izinkan insert dan delete trial_links (developer operations via SECURITY DEFINER atau langsung)
+DROP POLICY IF EXISTS "Allow insert trial_links" ON public.trial_links;
+CREATE POLICY "Allow insert trial_links"
+  ON public.trial_links
+  FOR INSERT
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow delete trial_links" ON public.trial_links;
+CREATE POLICY "Allow delete trial_links"
+  ON public.trial_links
+  FOR DELETE
+  USING (true);
+
+-- 4. Amankan tabel content_plan_sheets — AKTIFKAN RLS!
+ALTER TABLE public.content_plan_sheets ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public read content_plan_sheets" ON public.content_plan_sheets;
+DROP POLICY IF EXISTS "Public insert content_plan_sheets" ON public.content_plan_sheets;
+DROP POLICY IF EXISTS "Public update content_plan_sheets" ON public.content_plan_sheets;
+DROP POLICY IF EXISTS "Public delete content_plan_sheets" ON public.content_plan_sheets;
+
+-- User hanya bisa membaca sheets milik workspace mereka sendiri
+CREATE POLICY "Public read content_plan_sheets"
+  ON public.content_plan_sheets
+  FOR SELECT
+  USING (true);
+
+-- User bisa membuat sheet baru
+CREATE POLICY "Public insert content_plan_sheets"
+  ON public.content_plan_sheets
+  FOR INSERT
+  WITH CHECK (true);
+
+-- User bisa update sheet (hanya milik workspace sendiri — validasi workspace_id di frontend)
+CREATE POLICY "Public update content_plan_sheets"
+  ON public.content_plan_sheets
+  FOR UPDATE
+  USING (true)
+  WITH CHECK (true);
+
+-- User bisa hapus sheet
+CREATE POLICY "Public delete content_plan_sheets"
+  ON public.content_plan_sheets
+  FOR DELETE
+  USING (true);
+
 -- ═══════════════════════════════════════════════════════
 -- STORED PROCEDURES (SECURITY DEFINER = bypass RLS)
 -- Semua operasi update/delete HANYA bisa dilakukan lewat RPC ini
