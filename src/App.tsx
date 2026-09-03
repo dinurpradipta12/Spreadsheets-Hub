@@ -654,6 +654,7 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: string; msg: string } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [sheetsCountMap, setSheetsCountMap] = useState<Record<string, number>>({});
 
   // Trial links state
   const [trialLinks, setTrialLinks] = useState<TrialLink[]>([]);
@@ -776,6 +777,28 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
       }
       setWorkspaces([...list]);
     }
+
+    // Fetch total active sheets per workspace (via RPC + fallback)
+    try {
+      const { data: countData } = await supabase.rpc('get_workspace_sheet_counts');
+      if (countData && (countData as any[]).length > 0) {
+        const map: Record<string, number> = {};
+        for (const row of countData as { workspace_id: string; sheet_count: number }[]) {
+          map[row.workspace_id] = Number(row.sheet_count);
+        }
+        setSheetsCountMap(map);
+      } else {
+        const { data: sheetsData } = await supabase.from('content_plan_sheets').select('workspace_id').eq('status', 'active');
+        if (sheetsData) {
+          const map: Record<string, number> = {};
+          for (const row of sheetsData as { workspace_id: string }[]) {
+            map[row.workspace_id] = (map[row.workspace_id] || 0) + 1;
+          }
+          setSheetsCountMap(map);
+        }
+      }
+    } catch {}
+
     setLoading(false);
   };
 
@@ -1329,7 +1352,11 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
                       </>
                     ) : <span style={{ color: 'var(--muted)' }}>—</span>}
                   </td>
-                  <td className="dev-sheets-count">—</td>
+                  <td className="dev-sheets-count">
+                    <span className="dev-badge" style={{ background: 'var(--surface)', color: 'var(--text)', fontWeight: 600 }}>
+                      {sheetsCountMap[ws.id] ?? 0} sheet
+                    </span>
+                  </td>
                   <td className="dev-actions">
                     <a href={`/?w=${ws.slug}`} target="_blank" rel="noopener noreferrer" className="dev-btn dev-btn-view" title="Buka workspace">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
