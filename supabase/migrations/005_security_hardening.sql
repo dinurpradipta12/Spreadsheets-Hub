@@ -9,6 +9,8 @@ DROP POLICY IF EXISTS "Public read workspaces" ON public.workspaces;
 DROP POLICY IF EXISTS "Public insert workspace" ON public.workspaces;
 DROP POLICY IF EXISTS "Restricted workspace update" ON public.workspaces;
 DROP POLICY IF EXISTS "Restricted workspace delete" ON public.workspaces;
+DROP POLICY IF EXISTS "Block direct workspace update" ON public.workspaces;
+DROP POLICY IF EXISTS "Block direct workspace delete" ON public.workspaces;
 
 -- Policy SELECT: Izinkan publik membaca workspace (tanpa kolom password — difilter di frontend query)
 CREATE POLICY "Public read workspaces"
