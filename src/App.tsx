@@ -69,7 +69,7 @@ function cn(...parts: (string | false | undefined | null)[]): string {
   return parts.filter(Boolean).join(' ');
 }
 
-const PUBLIC_WORKSPACE_FIELDS = 'id, slug, owner_name, created_at, is_active, has_paid, is_trial, trial_link_id, trial_started_at, trial_ends_at, trial_expired, revoked_at, revoked_by, revoke_reason';
+const PUBLIC_WORKSPACE_FIELDS = 'id, slug, owner_name, created_at, is_active, has_paid, is_trial, trial_link_id, trial_started_at, trial_ends_at, trial_expired, subscription_started_at, subscription_ends_at, revoked_at, revoked_by, revoke_reason';
 
 function getWorkspaceSlug(): string | null {
   // Hanya cek localStorage (persist per browser)
@@ -118,7 +118,7 @@ async function loadAppSettings(): Promise<Record<string, string>> {
     const cached = localStorage.getItem('app_settings');
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (parsed._ts && Date.now() - Number(parsed._ts) < 5 * 60 * 1000) {
+      if (parsed._ts && Date.now() - Number(parsed._ts) < 30 * 1000) {
         const { _ts, ...rest } = parsed;
         return rest as Record<string, string>;
       }
@@ -832,7 +832,15 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
     const { error: err } = await supabase.rpc('activate_trial_user', { p_workspace_id: ws.id });
     setActionLoading(null);
     if (err) { setToast({ type: 'error', msg: err.message }); }
-    else { setToast({ type: 'success', msg: `Workspace "${ws.owner_name}" berhasil diaktifkan. Penangguhan dicabut.` }); fetchWorkspaces(); }
+    else { setToast({ type: 'success', msg: `Workspace "${ws.owner_name}" berhasil diaktifkan + langganan 1 bulan dimulai.` }); fetchWorkspaces(); }
+  };
+
+  const extendSubscription = async (ws: Workspace) => {
+    setActionLoading(ws.id);
+    const { error: err } = await supabase.rpc('extend_subscription', { p_workspace_id: ws.id });
+    setActionLoading(null);
+    if (err) { setToast({ type: 'error', msg: err.message }); }
+    else { setToast({ type: 'success', msg: `Langganan "${ws.owner_name}" diperpanjang 1 bulan.` }); fetchWorkspaces(); }
   };
 
   const toggleActive = async (ws: Workspace) => {
@@ -1133,12 +1141,16 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
                 <th>Dibuat</th>
                 <th>Status</th>
                 <th>Payment</th>
+                <th>Langganan</th>
                 <th>Sheets</th>
                 <th>Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((ws) => (
+              {filtered.map((ws) => {
+                const subEnd = ws.subscription_ends_at ? new Date(ws.subscription_ends_at) : null;
+                const subExpired = subEnd ? subEnd < new Date() : false;
+                return (
                 <tr key={ws.id} className={!ws.is_active ? 'dev-row-inactive' : ''}>
                   <td><strong>{ws.owner_name}</strong></td>
                   <td><code>{ws.slug}</code></td>
@@ -1152,6 +1164,19 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
                     <span className={cn('dev-status', ws.has_paid ? 'dev-status-paid' : 'dev-status-free')}>
                       {ws.has_paid ? 'Paid' : 'Free'}
                     </span>
+                  </td>
+                  <td>
+                    {subEnd ? (
+                      <>
+                        <span className={cn('dev-status', subExpired ? 'dev-status-expired' : 'dev-status-active')}>
+                          {subExpired ? 'Habis' : 'Aktif'}
+                        </span>
+                        <br />
+                        <small style={{ color: 'var(--muted)', fontSize: '0.72rem' }}>
+                          s/d {subEnd.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </small>
+                      </>
+                    ) : <span style={{ color: 'var(--muted)' }}>—</span>}
                   </td>
                   <td className="dev-sheets-count">—</td>
                   <td className="dev-actions">
@@ -1168,12 +1193,16 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
                     <button className={cn('dev-btn', ws.has_paid ? 'dev-btn-free' : 'dev-btn-paid')} onClick={() => togglePaid(ws)} disabled={actionLoading === ws.id} title={ws.has_paid ? 'Set Free' : 'Set Paid'}>
                       {ws.has_paid ? '$' : '💳'}
                     </button>
+                    <button className="dev-btn dev-btn-activate" onClick={() => extendSubscription(ws)} disabled={actionLoading === ws.id} title="Perpanjang Langganan +1 Bulan" style={{ fontSize: '11px', padding: '3px 6px' }}>
+                      +1Bln
+                    </button>
                     <button className="dev-btn dev-btn-delete" onClick={() => deleteWorkspace(ws)} disabled={actionLoading === ws.id} title="Hapus">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -2051,6 +2080,20 @@ export default function App() {
     return () => clearInterval(interval);
   }, [workspace]);
 
+  // Cek subscription expired — interval setiap 30 detik
+  useEffect(() => {
+    if (!workspace || workspace.is_trial || !workspace.subscription_ends_at) return;
+    const checkSubExpiry = () => {
+      if (new Date(workspace.subscription_ends_at!) < new Date()) {
+        // Subscription habis — reload untuk re-check dari database
+        window.location.reload();
+      }
+    };
+    checkSubExpiry();
+    const interval = setInterval(checkSubExpiry, 30000);
+    return () => clearInterval(interval);
+  }, [workspace]);
+
   // Developer panel
   if (devMode) {
     return <DeveloperPanel onExit={() => { clearWorkspaceFromStorage(); window.location.href = '/'; }} />;
@@ -2105,6 +2148,13 @@ export default function App() {
                 <>
                   <span className="header-status-badge header-status-trial">Trial</span>
                   {workspace!.trial_ends_at && <TrialCountdown endTime={workspace!.trial_ends_at} />}
+                </>
+              ) : workspace!.subscription_ends_at ? (
+                <>
+                  <span className="header-status-badge header-status-paid">Paid</span>
+                  <span className="header-sub-info" style={{ fontSize: '0.68rem', color: 'var(--muted)', marginLeft: 6 }}>
+                    s/d {new Date(workspace!.subscription_ends_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
                 </>
               ) : (
                 <span className="header-status-badge header-status-paid">Paid</span>

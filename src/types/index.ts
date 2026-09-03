@@ -11,6 +11,8 @@ export type Workspace = {
   trial_started_at: string | null;
   trial_ends_at: string | null;
   trial_expired: boolean;
+  subscription_started_at?: string | null;
+  subscription_ends_at?: string | null;
   revoked_at: string | null;
   revoked_by: string | null;
   revoke_reason: string | null;
@@ -40,8 +42,8 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   trial_duration_hours: '36',
   app_name: 'Spreadsheets Hub Manager',
   app_description: 'Spreadsheets Management by Dinur Pradipta',
-  payment_amount: 'Rp 150.000',
-  payment_note: 'Total Pembayaran',
+  payment_amount: 'Rp 150.000 / bulan',
+  payment_note: 'Biaya Langganan 1 Bulan',
 };
 
 export type ContentPlanSheet = {
