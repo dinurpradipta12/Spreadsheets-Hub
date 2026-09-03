@@ -749,7 +749,24 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
     setLoading(true);
     setError(null);
     const { data, error: err } = await supabase.from('workspaces').select(PUBLIC_WORKSPACE_FIELDS).order('created_at', { ascending: false });
-    if (err) { setError(err.message); } else { setWorkspaces(data as Workspace[]); }
+    if (err) {
+      setError(err.message);
+    } else {
+      const list = (data as Workspace[]) || [];
+      const now = new Date();
+      for (const ws of list) {
+        if (ws.subscription_ends_at && new Date(ws.subscription_ends_at) < now && ws.is_active) {
+          ws.is_active = false;
+          ws.revoke_reason = 'Masa langganan habis. Silakan selesaikan pembayaran untuk membuka kembali akses.';
+          supabase.from('workspaces').update({
+            is_active: false,
+            revoked_at: new Date().toISOString(),
+            revoke_reason: 'Masa langganan habis. Silakan selesaikan pembayaran untuk membuka kembali akses.'
+          }).eq('id', ws.id).then(() => {});
+        }
+      }
+      setWorkspaces([...list]);
+    }
     setLoading(false);
   };
 
@@ -927,11 +944,18 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
 
       {/* ─── Summary Cards (At the Very Top) ─── */}
       <div className="dev-summary" style={{ marginTop: 16, marginBottom: 20 }}>
-        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.length}</span><span>Total Workspace</span></div>
-        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => w.is_active).length}</span><span>Active</span></div>
-        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => !w.is_active).length}</span><span>Revoked / Expired</span></div>
-        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => w.has_paid).length}</span><span>Paid</span></div>
-        <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => w.is_trial).length}</span><span>Trial Users</span></div>
+        {(() => {
+          const isWsActive = (w: Workspace) => w.is_active && (!w.subscription_ends_at || new Date(w.subscription_ends_at) >= new Date());
+          return (
+            <>
+              <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.length}</span><span>Total Workspace</span></div>
+              <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(isWsActive).length}</span><span>Active</span></div>
+              <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => !isWsActive(w)).length}</span><span>Revoked / Expired</span></div>
+              <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => w.has_paid).length}</span><span>Paid</span></div>
+              <div className="dev-stat-card"><span className="dev-stat-num">{workspaces.filter(w => w.is_trial).length}</span><span>Trial Users</span></div>
+            </>
+          );
+        })()}
       </div>
 
       {tab === 'app' ? (
@@ -1267,14 +1291,15 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
               {filtered.map((ws) => {
                 const subEnd = ws.subscription_ends_at ? new Date(ws.subscription_ends_at) : null;
                 const subExpired = subEnd ? subEnd < new Date() : false;
+                const isEffectiveActive = ws.is_active && !subExpired;
                 return (
-                <tr key={ws.id} className={!ws.is_active ? 'dev-row-inactive' : ''}>
+                <tr key={ws.id} className={!isEffectiveActive ? 'dev-row-inactive' : ''}>
                   <td><strong>{ws.owner_name}</strong></td>
                   <td><code>{ws.slug}</code></td>
                   <td>{new Date(ws.created_at).toLocaleDateString('id-ID')}</td>
                   <td>
-                    <span className={cn('dev-status', ws.is_active ? 'dev-status-active' : 'dev-status-inactive')}>
-                      {ws.is_active ? 'Active' : 'Revoked'}
+                    <span className={cn('dev-status', isEffectiveActive ? 'dev-status-active' : 'dev-status-expired')}>
+                      {isEffectiveActive ? 'Active' : 'Revoked'}
                     </span>
                   </td>
                   <td>
@@ -2056,9 +2081,13 @@ export default function App() {
 
       // Cek langganan habis — otomatis revoke workspace
       if (ws.subscription_ends_at && new Date(ws.subscription_ends_at) < new Date() && ws.is_active) {
-        await supabase.rpc('auto_revoke_expired_subscription', { p_workspace_id: ws.id });
         ws.is_active = false;
         ws.revoke_reason = 'Masa langganan habis. Silakan selesaikan pembayaran untuk membuka kembali akses.';
+        await supabase.from('workspaces').update({
+          is_active: false,
+          revoked_at: new Date().toISOString(),
+          revoke_reason: 'Masa langganan habis. Silakan selesaikan pembayaran untuk membuka kembali akses.'
+        }).eq('id', ws.id);
       }
 
       if (!ws.is_active) { setWorkspace(ws); setWsLoading(false); setWorkspaceChecked(true); return; }
@@ -2232,17 +2261,26 @@ export default function App() {
     return () => { supabase.removeChannel(wsChannel); };
   }, [workspace]);
 
-  // Cek trial expired secara realtime — interval setiap 10 detik
+  // Cek trial & subscription expired secara realtime saat user sedang aktif
   useEffect(() => {
-    if (!workspace || !workspace.is_trial || !workspace.trial_ends_at) return;
-    const checkExpired = () => {
-      if (new Date(workspace.trial_ends_at!) < new Date()) {
+    if (!workspace) return;
+    const checkActiveExpired = () => {
+      const now = new Date();
+      let expired = false;
+      if (workspace.is_trial && workspace.trial_ends_at && new Date(workspace.trial_ends_at) < now) {
+        expired = true;
         setTrialExpired(true);
         setTrialExpiresAt(workspace.trial_ends_at);
       }
+      if (workspace.subscription_ends_at && new Date(workspace.subscription_ends_at) < now) {
+        expired = true;
+      }
+      if (expired && workspace.is_active) {
+        setWorkspace((prev) => prev ? { ...prev, is_active: false } : null);
+      }
     };
-    checkExpired();
-    const interval = setInterval(checkExpired, 10000);
+    checkActiveExpired();
+    const interval = setInterval(checkActiveExpired, 5000);
     return () => clearInterval(interval);
   }, [workspace]);
 
@@ -2289,7 +2327,8 @@ export default function App() {
   }
 
   // Revoked / Expired workspace — jika tidak aktif ATAU masa berlangganan sudah habis
-  if (workspace && !workspace.is_active) {
+  const isSubExpired = workspace?.subscription_ends_at ? new Date(workspace.subscription_ends_at) < new Date() : false;
+  if (workspace && (!workspace.is_active || isSubExpired)) {
     return <RevokedPage workspace={workspace} />;
   }
 
