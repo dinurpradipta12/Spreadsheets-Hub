@@ -38,6 +38,7 @@ import {
   LoadingButton,
   NumberInput,
   RefreshNumberButton,
+  WorkspaceHeaderActionsPortal,
   cx,
 } from './shared';
 import type {
@@ -472,7 +473,7 @@ export function DocumentStudio({ kind, workspace, toast, onNavigate }: StudioPro
 
   return (
     <div className="business-page document-studio-page">
-      <div className="business-page-toolbar" aria-label={isInvoice ? 'Aksi Invoice' : 'Aksi Penawaran Harga'}>
+      <WorkspaceHeaderActionsPortal>
         {kind === 'quote' && document.status === 'accepted' && (
           <button type="button" className="business-button business-button-secondary" onClick={createInvoiceFromQuote}>
             Buat Invoice <ArrowRight size={17} />
@@ -487,7 +488,7 @@ export function DocumentStudio({ kind, workspace, toast, onNavigate }: StudioPro
         <LoadingButton className="business-button-accent" busy={exporting} busyLabel="Membuat PDF..." onClick={() => void handleExport()} disabled={saving}>
           <Download size={17} /> Export PDF HD
         </LoadingButton>
-      </div>
+      </WorkspaceHeaderActionsPortal>
 
       {(warning || remotePending || dirty) && (
         <div className={cx('studio-status-strip', warning && 'has-warning')} role="status">

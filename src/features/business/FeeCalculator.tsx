@@ -45,6 +45,7 @@ import {
   NumberInput,
   cx,
   panelAccentStyle,
+  WorkspaceHeaderActionsPortal,
 } from './shared';
 import type {
   AddOnItem,
@@ -259,14 +260,14 @@ export function FeeCalculatorPage({
 
   return (
     <div className="business-page fee-calculator-page">
-      <div className="business-page-toolbar" aria-label="Aksi Fee Calculator">
+      <WorkspaceHeaderActionsPortal>
         <button type="button" className="business-button business-button-secondary" onClick={() => setResetConfirmation(true)} disabled={!canManagePricing}>
           <RefreshCw size={17} /> Reset
         </button>
         <button type="button" className={cx('fee-save-indicator', saveStatus === 'error' && 'is-error')} onClick={() => { if (saveStatus === 'error') void retry(); }} disabled={saveStatus !== 'error'}>
           {saveIndicator}
         </button>
-      </div>
+      </WorkspaceHeaderActionsPortal>
 
       {warning && (
         <div className="studio-status-strip has-warning" role="status">

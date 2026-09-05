@@ -2402,7 +2402,7 @@ function WorkspaceHeader({
           <p className="header-desc">Spreadsheets Management by Dinur Pradipta</p>
         </div>
       </div>
-      {showActions && <div className="app-header-right">
+      {showActions ? <div className="app-header-right">
         <button
           className="btn-help-toggle"
           onClick={onOpenTutorial}
@@ -2427,7 +2427,7 @@ function WorkspaceHeader({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Hubungkan Sheet Baru
         </button>
-      </div>}
+      </div> : <div className="app-header-right app-header-page-actions" id="workspace-header-page-actions" aria-label="Aksi halaman" />}
     </header>
   );
 }

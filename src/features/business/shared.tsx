@@ -449,6 +449,16 @@ export function WorkspaceNavigation({
   );
 }
 
+export function WorkspaceHeaderActionsPortal({ children }: { children: ReactNode }) {
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setTarget(document.getElementById('workspace-header-page-actions'));
+  }, []);
+
+  return target ? createPortal(children, target) : null;
+}
+
 export function RefreshNumberButton({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" className="business-input-action" onClick={onClick} aria-label="Buat nomor dokumen baru" title="Buat nomor baru">
