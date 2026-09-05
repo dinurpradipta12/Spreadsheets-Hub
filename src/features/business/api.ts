@@ -71,9 +71,29 @@ export function clearBusinessAccess(workspaceId?: string): void {
 }
 
 export function hasPageAccess(workspaceId: string, page: string): boolean {
+  if (page === 'sheets') return true;
   const access = getBusinessAccess(workspaceId);
-  if (!access) return true;
-  return access.role === 'admin' || access.pages.includes(page);
+  return Boolean(access?.token && access.role === 'admin' && access.pages.includes(page));
+}
+
+const TERMINAL_SESSION_CODES = new Set([
+  'session_missing',
+  'session_expired',
+  'owner_only',
+  'access_denied',
+  'workspace_inactive',
+  'subscription_expired',
+  'trial_expired',
+]);
+
+function canUseRecovery(workspaceId: string, error: unknown): boolean {
+  const access = getBusinessAccess(workspaceId);
+  if (!access?.token) return false;
+  if (error instanceof BusinessApiError && TERMINAL_SESSION_CODES.has(error.code)) {
+    clearBusinessAccess(workspaceId);
+    return false;
+  }
+  return true;
 }
 
 async function invokeBusinessApi<T>(workspaceId: string, action: string, payload: unknown = {}): Promise<T> {
@@ -155,10 +175,12 @@ export async function loadDocuments(
     cacheDocuments(workspaceId, kind, hydrated);
     return { data: hydrated, source: 'server' };
   } catch (error) {
-    const local = getLocalDocuments(workspaceId, kind).map((row) => ({
+    const local = canUseRecovery(workspaceId, error)
+      ? getLocalDocuments(workspaceId, kind).map((row) => ({
       ...row,
       data: hydrateDocument(kind, workspaceName, row.data),
-    }));
+      }))
+      : [];
     return {
       data: local,
       source: 'recovery',
@@ -177,7 +199,9 @@ export async function loadDocumentById(
     const row = await invokeBusinessApi<StoredDocument | null>(workspaceId, 'get_document', { kind, id });
     return { data: row ? { ...row, data: hydrateDocument(kind, workspaceName, row.data) } : null, source: 'server' };
   } catch (error) {
-    const row = getLocalDocuments(workspaceId, kind).find((candidate) => candidate.id === id) ?? null;
+    const row = canUseRecovery(workspaceId, error)
+      ? getLocalDocuments(workspaceId, kind).find((candidate) => candidate.id === id) ?? null
+      : null;
     return {
       data: row ? { ...row, data: hydrateDocument(kind, workspaceName, row.data) } : null,
       source: 'recovery',
@@ -202,6 +226,10 @@ export async function saveDocument(
     return { data: row, source: 'server' };
   } catch (error) {
     if (error instanceof BusinessApiError && error.code === 'number_conflict') throw error;
+    // A local draft may still be created before the owner signs in, but it is
+    // never returned by loadDocuments/loadDocumentById without an owner token.
+    // Once a token exists, terminal session errors must not fall back to data.
+    if (getBusinessAccess(workspaceId)?.token && !canUseRecovery(workspaceId, error)) throw error;
     const localRows = getLocalDocuments(workspaceId, document.kind);
     const existing = localRows.find((row) => row.id === document.id);
     const duplicate = localRows.find((row) => row.document_number === document.number && row.id !== document.id);
@@ -241,12 +269,12 @@ export async function deleteDocument(
 }
 
 export function saveRecoveryDraft(workspaceId: string, document: BusinessDocument): void {
-  if (!storageAvailable()) return;
+  if (!storageAvailable() || !getBusinessAccess(workspaceId)?.token) return;
   localStorage.setItem(recoveryDraftKey(workspaceId, document.kind), JSON.stringify({ document, savedAt: new Date().toISOString() }));
 }
 
 export function loadRecoveryDraft(workspaceId: string, kind: DocumentKind): BusinessDocument | null {
-  if (!storageAvailable()) return null;
+  if (!storageAvailable() || !getBusinessAccess(workspaceId)?.token) return null;
   const value = parseJson<{ document: BusinessDocument }>(localStorage.getItem(recoveryDraftKey(workspaceId, kind)));
   return value?.document ?? null;
 }
@@ -265,7 +293,8 @@ export async function loadFeeCalculator(
     if (storageAvailable()) localStorage.setItem(pricingKey(workspaceId), JSON.stringify(hydrated));
     return { data: hydrated, source: 'server' };
   } catch (error) {
-    const cached = storageAvailable()
+    const canRecover = canUseRecovery(workspaceId, error);
+    const cached = canRecover && storageAvailable()
       ? parseJson<FeeCalculatorState>(localStorage.getItem(pricingKey(workspaceId)))
       : null;
     return {
@@ -280,16 +309,19 @@ export async function saveFeeCalculator(
   workspaceId: string,
   state: FeeCalculatorState,
 ): Promise<PersistenceResult<FeeCalculatorState>> {
-  if (storageAvailable()) localStorage.setItem(pricingKey(workspaceId), JSON.stringify(state));
+  if (getBusinessAccess(workspaceId)?.token && storageAvailable()) localStorage.setItem(pricingKey(workspaceId), JSON.stringify(state));
   try {
     const saved = await invokeBusinessApi<FeeCalculatorState>(workspaceId, 'save_fee_calculator', { state });
     if (storageAvailable()) localStorage.setItem(pricingKey(workspaceId), JSON.stringify(saved));
     return { data: saved, source: 'server' };
   } catch (error) {
+    const canRecover = canUseRecovery(workspaceId, error);
     return {
       data: state,
       source: 'recovery',
-      warning: error instanceof Error ? error.message : 'Server tidak tersedia.',
+      warning: canRecover
+        ? (error instanceof Error ? error.message : 'Server tidak tersedia.')
+        : 'Sesi pemilik workspace belum tersedia. Data hanya dapat disimpan setelah masuk ulang.',
     };
   }
 }
@@ -298,7 +330,7 @@ export async function saveFeeCustomQuote(
   workspaceId: string,
   state: FeeCalculatorState,
 ): Promise<PersistenceResult<FeeCalculatorState>> {
-  if (storageAvailable()) localStorage.setItem(pricingKey(workspaceId), JSON.stringify(state));
+  if (getBusinessAccess(workspaceId)?.token && storageAvailable()) localStorage.setItem(pricingKey(workspaceId), JSON.stringify(state));
   try {
     const customQuote = await invokeBusinessApi<FeeCalculatorState['customQuote']>(
       workspaceId,
@@ -309,10 +341,13 @@ export async function saveFeeCustomQuote(
     if (storageAvailable()) localStorage.setItem(pricingKey(workspaceId), JSON.stringify(saved));
     return { data: saved, source: 'server' };
   } catch (error) {
+    const canRecover = canUseRecovery(workspaceId, error);
     return {
       data: state,
       source: 'recovery',
-      warning: error instanceof Error ? error.message : 'Server tidak tersedia.',
+      warning: canRecover
+        ? (error instanceof Error ? error.message : 'Server tidak tersedia.')
+        : 'Sesi pemilik workspace belum tersedia. Data hanya dapat disimpan setelah masuk ulang.',
     };
   }
 }
@@ -332,7 +367,7 @@ export async function createFeeQuoteDraft(
     if (storageAvailable()) sessionStorage.setItem(feeDraftKey(workspaceId, saved.id), JSON.stringify(saved));
     return { data: saved, source: 'server' };
   } catch (error) {
-    if (storageAvailable()) sessionStorage.setItem(feeDraftKey(workspaceId, localDraft.id), JSON.stringify(localDraft));
+    if (canUseRecovery(workspaceId, error) && storageAvailable()) sessionStorage.setItem(feeDraftKey(workspaceId, localDraft.id), JSON.stringify(localDraft));
     return {
       data: localDraft,
       source: 'recovery',
@@ -349,7 +384,7 @@ export async function loadFeeQuoteDraft(
     const draft = await invokeBusinessApi<FeeQuoteDraft | null>(workspaceId, 'get_fee_quote_draft', { id: draftId });
     return { data: draft, source: 'server' };
   } catch (error) {
-    const cached = storageAvailable()
+    const cached = canUseRecovery(workspaceId, error) && storageAvailable()
       ? parseJson<FeeQuoteDraft>(sessionStorage.getItem(feeDraftKey(workspaceId, draftId)))
       : null;
     return {

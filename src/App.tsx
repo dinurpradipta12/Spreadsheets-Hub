@@ -582,6 +582,7 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
     e.preventDefault();
     const cleanName = name.trim();
     if (!cleanName) { setError('Nama workspace wajib diisi.'); return; }
+    if (!password.trim()) { setError('Password workspace wajib diisi agar data hanya dapat diakses pemilik.'); return; }
     setLoading(true);
     setError('');
 
@@ -694,14 +695,14 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
             </div>
             <div className="form-group">
               <label htmlFor="landing-password" className="form-label">
-                Password Workspace
+                Password Workspace (wajib)
                 <span className="form-hint-icon" onMouseEnter={() => setShowPwHint(true)} onMouseLeave={() => setShowPwHint(false)}>?</span>
               </label>
-              {showPwHint && <div className="form-hint-overlay">Password opsional untuk melindungi workspace Anda. Bisa dikosongkan.</div>}
+              {showPwHint && <div className="form-hint-overlay">Password wajib untuk memastikan hanya pemilik workspace yang dapat melihat invoice, penawaran, dan Fee Calculator.</div>}
               <input id="landing-password" type="password" className="form-input landing-input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Masukkan password..." autoComplete="new-password" />
             </div>
             {error && <p className="form-error">{error}</p>}
-            <button type="submit" className="btn-primary-lg landing-btn" disabled={loading || !name.trim()}>
+            <button type="submit" className="btn-primary-lg landing-btn" disabled={loading || !name.trim() || !password.trim()}>
               {loading ? 'Membuat...' : 'Buat Workspace →'}
             </button>
           </form>
@@ -858,7 +859,7 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
   // Auto-sync expired trials
   useEffect(() => {
     const sync = async () => {
-      const { data } = await supabase.from('workspaces').select(PUBLIC_WORKSPACE_FIELDS).eq('is_trial', true).eq('is_active', true);
+      const { data } = await supabase.from('workspace_public').select(PUBLIC_WORKSPACE_FIELDS).eq('is_trial', true).eq('is_active', true);
       if (!data) return;
       const now = new Date();
       for (const ws of data as Workspace[]) {
@@ -883,7 +884,7 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
   const fetchWorkspaces = async () => {
     setLoading(true);
     setError(null);
-    const { data, error: err } = await supabase.from('workspaces').select(PUBLIC_WORKSPACE_FIELDS).order('created_at', { ascending: false });
+    const { data, error: err } = await supabase.from('workspace_public').select(PUBLIC_WORKSPACE_FIELDS).order('created_at', { ascending: false });
     if (err) {
       setError(err.message);
     } else {
@@ -893,11 +894,7 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
         if (ws.subscription_ends_at && new Date(ws.subscription_ends_at) < now && ws.is_active) {
           ws.is_active = false;
           ws.revoke_reason = 'Masa langganan habis. Silakan selesaikan pembayaran untuk membuka kembali akses.';
-          supabase.from('workspaces').update({
-            is_active: false,
-            revoked_at: new Date().toISOString(),
-            revoke_reason: 'Masa langganan habis. Silakan selesaikan pembayaran untuk membuka kembali akses.'
-          }).eq('id', ws.id).then(() => {});
+          supabase.rpc('mark_workspace_subscription_expired', { p_workspace_id: ws.id }).then(() => {});
         }
       }
       setWorkspaces([...list]);
@@ -1589,7 +1586,7 @@ function DevSheetsHub({ onExit, onBackToAdmin }: { onExit: () => void; onBackToA
   // Get or create dev workspace
   useEffect(() => {
     (async () => {
-      const { data, error: err } = await supabase.from('workspaces').select(PUBLIC_WORKSPACE_FIELDS).eq('slug', 'dev-admin').single();
+      const { data, error: err } = await supabase.from('workspace_public').select(PUBLIC_WORKSPACE_FIELDS).eq('slug', 'dev-admin').single();
       if (!err && data) {
         const ws = data as Workspace;
         setWorkspace(ws);
@@ -1601,8 +1598,11 @@ function DevSheetsHub({ onExit, onBackToAdmin }: { onExit: () => void; onBackToA
         }
       } else {
         // Create dev workspace
-        const { data: newWs } = await supabase.from('workspaces').insert({ slug: 'dev-admin', owner_name: 'Developer' }).select().single();
-        if (newWs) setWorkspace(newWs as Workspace);
+        const { error: insertError } = await supabase.from('workspaces').insert({ slug: 'dev-admin', owner_name: 'Developer' });
+        if (!insertError) {
+          const { data: newWs } = await supabase.from('workspace_public').select(PUBLIC_WORKSPACE_FIELDS).eq('slug', 'dev-admin').single();
+          if (newWs) setWorkspace(newWs as Workspace);
+        }
       }
       setLoading(false);
     })();
@@ -1738,7 +1738,7 @@ function ConnectModal({ open, onClose, onSuccess, workspaceId, toast }: {
     if (error) { toast('error', `Gagal menyimpan: ${error.message}`); return; }
     toast('success', `Sheet "${data.title}" berhasil dihubungkan.`);
     const sheetTitle = data.title || `Spreadsheet ${data.clientName}`;
-    supabase.from('workspaces').select('owner_name').eq('id', workspaceId).single().then(({ data: wsData }) => {
+    supabase.from('workspace_public').select('owner_name').eq('id', workspaceId).single().then(({ data: wsData }) => {
       if (wsData) {
         notifyNewSheet((wsData as any).owner_name, data.clientName, sheetTitle, data.platform).catch(() => {});
       }
@@ -1921,7 +1921,7 @@ function RevokedPage({ workspace }: { workspace: Workspace }) {
   // Auto-refresh — cek apakah workspace sudah diaktifkan kembali oleh developer
   useEffect(() => {
     const check = async () => {
-      const { data } = await supabase.from('workspaces').select(PUBLIC_WORKSPACE_FIELDS).eq('id', workspace.id).single();
+      const { data } = await supabase.from('workspace_public').select(PUBLIC_WORKSPACE_FIELDS).eq('id', workspace.id).single();
       if (data) {
         const ws = data as Workspace;
         const subStillExpired = ws.subscription_ends_at ? new Date(ws.subscription_ends_at) < new Date() : false;
@@ -2509,7 +2509,7 @@ export default function App() {
 
     (async () => {
       setWsLoading(true);
-      const { data, error: err } = await supabase.from('workspaces').select(PUBLIC_WORKSPACE_FIELDS).eq('slug', slug).single();
+      const { data, error: err } = await supabase.from('workspace_public').select(PUBLIC_WORKSPACE_FIELDS).eq('slug', slug).single();
       if (err || !data) { setWsError('Workspace tidak ditemukan.'); setWsLoading(false); setWorkspaceChecked(true); return; }
       const ws = data as Workspace;
 
@@ -2552,11 +2552,7 @@ export default function App() {
       if (ws.subscription_ends_at && new Date(ws.subscription_ends_at) < new Date() && ws.is_active) {
         ws.is_active = false;
         ws.revoke_reason = 'Masa langganan habis. Silakan selesaikan pembayaran untuk membuka kembali akses.';
-        await supabase.from('workspaces').update({
-          is_active: false,
-          revoked_at: new Date().toISOString(),
-          revoke_reason: 'Masa langganan habis. Silakan selesaikan pembayaran untuk membuka kembali akses.'
-        }).eq('id', ws.id);
+        await supabase.rpc('mark_workspace_subscription_expired', { p_workspace_id: ws.id });
       }
 
       if (!ws.is_active) { setWorkspace(ws); setWsLoading(false); setWorkspaceChecked(true); return; }
@@ -2595,6 +2591,7 @@ export default function App() {
   }, [workspace, fetchSheets]);
 
   const handleCreateWorkspace = async (name: string, password: string, trialCodeParam?: string) => {
+    if (!password.trim()) throw new Error('Password workspace wajib diisi agar data hanya dapat diakses pemilik.');
     const { data: slug, error: slugErr } = await supabase.rpc('generate_workspace_slug', { name });
     if (slugErr || !slug) throw new Error(slugErr?.message || 'Gagal generate slug');
 
@@ -2650,22 +2647,24 @@ export default function App() {
     }
     if (password) insertData.password = password;
 
-    const { data: ws, error: insertErr } = await supabase.from('workspaces').insert(insertData).select(PUBLIC_WORKSPACE_FIELDS).single();
-    if (insertErr || !ws) throw new Error(insertErr?.message || 'Gagal membuat workspace');
+    const { error: insertErr } = await supabase.from('workspaces').insert(insertData);
+    if (insertErr) throw new Error(insertErr.message || 'Gagal membuat workspace');
     const { data: businessSession } = await supabase.rpc('authenticate_business_workspace', {
       p_name: name.trim(),
       p_password: password.trim(),
     });
     const sessionRow = Array.isArray(businessSession) ? businessSession[0] : null;
-    if (sessionRow?.session_token) {
-      saveBusinessAccess(ws.id, {
-        token: sessionRow.session_token,
-        role: sessionRow.business_role || 'admin',
-        pages: sessionRow.page_access || ['sheets', 'fee-calculator', 'invoices', 'quotes'],
-      });
+    if (!sessionRow?.session_token || !sessionRow.id) {
+      throw new Error('Workspace berhasil dibuat, tetapi sesi pemilik gagal dibuat. Silakan masuk ulang dengan password workspace.');
     }
+    const ws = sessionRow as Workspace;
+    saveBusinessAccess(ws.id, {
+      token: sessionRow.session_token,
+      role: sessionRow.business_role || 'admin',
+      pages: sessionRow.page_access || ['sheets', 'fee-calculator', 'invoices', 'quotes'],
+    });
     saveWorkspaceToStorage(ws.slug, name);
-    notifyNewWorkspace(ws as Workspace).catch(() => {});
+    notifyNewWorkspace(ws).catch(() => {});
     window.location.href = `/?w=${ws.slug}`;
   };
 

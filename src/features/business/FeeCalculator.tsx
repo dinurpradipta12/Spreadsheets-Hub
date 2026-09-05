@@ -100,7 +100,7 @@ export function FeeCalculatorPage({
   const firstLoadRef = useRef(true);
   const saveSequenceRef = useRef(0);
   const access = getBusinessAccess(workspace.id);
-  const canManagePricing = !access || ['admin', 'finance', 'pricing'].includes(access.role);
+  const canManagePricing = Boolean(access?.token && access.role === 'admin');
 
   const calculations = useMemo(() => calculateFeeCalculator(state), [state]);
   const customTotals = useMemo(

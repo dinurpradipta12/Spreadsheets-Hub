@@ -3,6 +3,7 @@ import type { Workspace } from '../types';
 
 export const DEFAULT_TELEGRAM_BOT_TOKEN = '8710369828:AAFbBonPYcXjp8-w0zQwEPV7n8DTHYV9S2o';
 const TELEGRAM_API = `https://api.telegram.org/bot${DEFAULT_TELEGRAM_BOT_TOKEN}`;
+const TELEGRAM_WORKSPACE_FIELDS = 'id, slug, owner_name, created_at, is_active, has_paid, is_trial, trial_link_id, trial_started_at, trial_ends_at, trial_expired, subscription_started_at, subscription_ends_at, force_sub_warning, revoked_at, revoked_by, revoke_reason';
 
 let cachedChatId: string | null = null;
 let isPollingActive = false;
@@ -288,7 +289,7 @@ async function handleTelegramUpdate(update: any) {
     // Command: /stats
     if (text.startsWith('/stats')) {
       try {
-        const { data: wsList } = await supabase.from('workspaces').select('*');
+        const { data: wsList } = await supabase.from('workspace_public').select(TELEGRAM_WORKSPACE_FIELDS);
         const list = (wsList as Workspace[]) || [];
         const total = list.length;
         const active = list.filter(w => w.is_active && (!w.subscription_ends_at || new Date(w.subscription_ends_at) >= new Date())).length;
@@ -314,7 +315,7 @@ async function handleTelegramUpdate(update: any) {
     // Command: /workspaces atau /list
     if (text.startsWith('/workspaces') || text.startsWith('/list')) {
       try {
-        const { data: wsList } = await supabase.from('workspaces').select('*').order('created_at', { ascending: false }).limit(10);
+        const { data: wsList } = await supabase.from('workspace_public').select(TELEGRAM_WORKSPACE_FIELDS).order('created_at', { ascending: false }).limit(10);
         const list = (wsList as Workspace[]) || [];
 
         if (list.length === 0) {

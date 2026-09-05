@@ -2,7 +2,6 @@ export type Workspace = {
   id: string;
   slug: string;
   owner_name: string;
-  password: string | null;
   created_at: string;
   is_active: boolean;
   has_paid: boolean;

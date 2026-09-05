@@ -131,6 +131,7 @@ type Session = {
   actor_email: string;
   role: 'admin' | 'finance' | 'pricing' | 'member';
   page_access: string[];
+  is_owner: boolean;
 };
 
 function response(body: unknown): Response {
@@ -162,16 +163,52 @@ function requirePricingRole(session: Session): void {
   }
 }
 
-function mapDocumentRow(row: Record<string, unknown>, kind: 'invoice' | 'quote') {
-  return {
+async function signStorageAsset(service: any, workspaceId: string, path: unknown): Promise<string | null> {
+  if (typeof path !== 'string' || !path) return null;
+  if (!path.startsWith(`${workspaceId}/`)) return null;
+  const { data, error } = await service.storage.from('business-documents').createSignedUrl(path, 60 * 60);
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
+}
+
+async function mapDocumentRow(service: any, row: Record<string, unknown>, kind: 'invoice' | 'quote', workspaceId: string) {
+  const mapped: Record<string, unknown> = {
     ...row,
     document_number: row[kind === 'invoice' ? 'invoice_number' : 'quote_number'],
   };
+  const storedDocument = row.data;
+  if (!storedDocument || typeof storedDocument !== 'object') return mapped;
+
+  const source = storedDocument as Record<string, any>;
+  const [logoUrl, backgroundImageUrl] = await Promise.all([
+    signStorageAsset(service, workspaceId, source.business?.logoPath),
+    signStorageAsset(service, workspaceId, source.appearance?.backgroundImagePath),
+  ]);
+  mapped.data = {
+    ...source,
+    business: {
+      ...(source.business ?? {}),
+      ...(source.business?.logoPath ? { logoUrl: logoUrl ?? '' } : {}),
+    },
+    appearance: {
+      ...(source.appearance ?? {}),
+      ...(source.appearance?.backgroundImagePath ? { backgroundImageUrl: backgroundImageUrl ?? '' } : {}),
+    },
+  };
+  return mapped;
 }
 
 function numberValue(value: unknown): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function assertDocumentAssetPaths(document: z.infer<typeof documentSchema>, workspaceId: string): void {
+  const paths = [document.business.logoPath, document.appearance.backgroundImagePath]
+    .filter((path): path is string => Boolean(path));
+  if (paths.some((path) => !path.startsWith(`${workspaceId}/`))) {
+    throw new Error('access_denied:asset');
+  }
 }
 
 Deno.serve(async (request) => {
@@ -191,19 +228,23 @@ Deno.serve(async (request) => {
     const tokenHash = await sha256Hex(rawToken);
     const { data: sessionData, error: sessionError } = await service
       .from('app_workspace_sessions')
-      .select('id, workspace_id, actor_email, role, page_access, expires_at')
+      .select('id, workspace_id, actor_email, role, page_access, is_owner, expires_at')
       .eq('token_hash', tokenHash)
       .gt('expires_at', new Date().toISOString())
       .maybeSingle();
     if (sessionError || !sessionData) return fail('Sesi workspace kedaluwarsa. Silakan masuk ulang.', 'session_expired');
     const session = sessionData as Session;
+    if (!session.is_owner) return fail('Sesi ini bukan sesi pemilik workspace.', 'owner_only');
 
     const { data: workspace, error: workspaceError } = await service
       .from('workspaces')
-      .select('id, is_active, subscription_ends_at, trial_ends_at')
+      .select('id, owner_name, is_active, subscription_ends_at, trial_ends_at')
       .eq('id', session.workspace_id)
       .maybeSingle();
     if (workspaceError || !workspace || !workspace.is_active) return fail('Workspace tidak aktif.', 'workspace_inactive');
+    if (session.actor_email.trim().toLowerCase() !== String(workspace.owner_name ?? '').trim().toLowerCase()) {
+      return fail('Sesi tidak cocok dengan pemilik workspace.', 'owner_only');
+    }
     if (workspace.subscription_ends_at && new Date(workspace.subscription_ends_at) < new Date()) return fail('Langganan workspace telah berakhir.', 'subscription_expired');
     if (workspace.trial_ends_at && new Date(workspace.trial_ends_at) < new Date()) return fail('Masa trial workspace telah berakhir.', 'trial_expired');
 
@@ -223,7 +264,7 @@ Deno.serve(async (request) => {
       const table = kind === 'invoice' ? 'app_invoices' : 'app_quotes';
       const { data, error } = await service.from(table).select('*').eq('workspace_id', session.workspace_id).order('updated_at', { ascending: false });
       if (error) throw error;
-      return response({ ok: true, data: (data ?? []).map((row) => mapDocumentRow(row, kind)) });
+      return response({ ok: true, data: await Promise.all((data ?? []).map((row) => mapDocumentRow(service, row, kind, session.workspace_id))) });
     }
 
     if (action === 'get_document') {
@@ -233,7 +274,7 @@ Deno.serve(async (request) => {
       const table = kind === 'invoice' ? 'app_invoices' : 'app_quotes';
       const { data, error } = await service.from(table).select('*').eq('workspace_id', session.workspace_id).eq('id', id).maybeSingle();
       if (error) throw error;
-      return response({ ok: true, data: data ? mapDocumentRow(data, kind) : null });
+      return response({ ok: true, data: data ? await mapDocumentRow(service, data, kind, session.workspace_id) : null });
     }
 
     if (action === 'save_document') {
@@ -241,6 +282,7 @@ Deno.serve(async (request) => {
       const document = documentSchema.parse(payload.document);
       if (kind !== document.kind) return fail('Jenis dokumen tidak konsisten.', 'invalid_document_kind');
       requireAccess(session, kind === 'invoice' ? 'invoices' : 'quotes');
+      assertDocumentAssetPaths(document, session.workspace_id);
       const table = kind === 'invoice' ? 'app_invoices' : 'app_quotes';
       const numberColumn = kind === 'invoice' ? 'invoice_number' : 'quote_number';
       const { data: existing } = await service.from(table).select('id, workspace_id').eq('id', document.id).maybeSingle();
@@ -268,7 +310,7 @@ Deno.serve(async (request) => {
         await service.from('fee_quote_drafts').update({ status: 'converted', quote_id: document.id })
           .eq('workspace_id', session.workspace_id).eq('id', document.sourceFeeCalculationId);
       }
-      return response({ ok: true, data: mapDocumentRow(data, kind) });
+      return response({ ok: true, data: await mapDocumentRow(service, data, kind, session.workspace_id) });
     }
 
     if (action === 'delete_document') {
@@ -401,8 +443,9 @@ Deno.serve(async (request) => {
       const path = `${session.workspace_id}/${upload.documentKind}/${upload.imageKind}/${crypto.randomUUID()}.${upload.extension}`;
       const { error } = await service.storage.from('business-documents').upload(path, binary, { contentType: upload.mimeType, cacheControl: '31536000', upsert: false });
       if (error) throw error;
-      const { data } = service.storage.from('business-documents').getPublicUrl(path);
-      return response({ ok: true, data: { path, url: data.publicUrl } });
+      const { data, error: signedUrlError } = await service.storage.from('business-documents').createSignedUrl(path, 60 * 60);
+      if (signedUrlError || !data?.signedUrl) throw signedUrlError ?? new Error('Gagal membuat URL gambar privat.');
+      return response({ ok: true, data: { path, url: data.signedUrl } });
     }
 
     return fail('Aksi tidak dikenal.', 'unknown_action');
