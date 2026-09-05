@@ -29,15 +29,13 @@ export function addDays(date: string, days: number): string {
 }
 
 export function agencyInitials(name: string): string {
-  const letters = name
+  const words = name
     .trim()
     .split(/\s+/)
     .map((word) => word.replace(/[^A-Za-z0-9]/g, '').toUpperCase())
     .filter((word) => word && !IGNORED_AGENCY_WORDS.has(word))
-    .map((word) => word[0])
-    .join('')
-    .slice(0, 5);
-  return letters || 'AG';
+  if (words.length === 1) return words[0];
+  return words.slice(0, 2).map((word) => word[0]).join('') || 'AG';
 }
 
 export function randomDocumentId(): string {

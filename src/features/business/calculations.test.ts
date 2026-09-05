@@ -98,8 +98,12 @@ describe('fee calculator formulas', () => {
 describe('document numbering', () => {
   it('ignores legal entity words when creating agency initials', () => {
     expect(agencyInitials('PT Bilik Strategi')).toBe('BS');
-    expect(agencyInitials('CV Ruang Sosmed Indonesia')).toBe('RSI');
+    expect(agencyInitials('CV Ruang Sosmed Indonesia')).toBe('RS');
     expect(agencyInitials('Yayasan')).toBe('AG');
+  });
+
+  it('keeps a one-word workspace name intact', () => {
+    expect(agencyInitials('Snail')).toBe('SNAIL');
   });
 
   it('creates a six-character unambiguous random id in the requested format', () => {

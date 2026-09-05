@@ -314,14 +314,14 @@ export function DocumentStudio({ kind, workspace, toast, onNavigate }: StudioPro
   };
 
   const uniqueNumber = useCallback(() => {
-    let next = generateDocumentNumber(kind, document.business.name || workspace.owner_name, document.issueDate);
+    let next = generateDocumentNumber(kind, workspace.owner_name, document.issueDate);
     let attempts = 0;
     while (documents.some((row) => row.document_number === next && row.id !== document.id) && attempts < 24) {
-      next = generateDocumentNumber(kind, document.business.name || workspace.owner_name, document.issueDate);
+      next = generateDocumentNumber(kind, workspace.owner_name, document.issueDate);
       attempts += 1;
     }
     updateDocument((current) => ({ ...current, number: next }));
-  }, [document.business.name, document.id, document.issueDate, documents, kind, updateDocument, workspace.owner_name]);
+  }, [document.id, document.issueDate, documents, kind, updateDocument, workspace.owner_name]);
 
   const resetToNew = useCallback(() => {
     clearRecoveryDraft(workspace.id, kind);
