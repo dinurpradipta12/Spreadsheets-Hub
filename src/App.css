@@ -1270,6 +1270,10 @@ body.dark ::-webkit-scrollbar-thumb { background: #3A3A4A; }
   background: var(--success);
   color: #fff;
 }
+.header-status-free {
+  background: rgba(102, 112, 133, 0.14);
+  color: var(--muted);
+}
 
 .header-desc {
   font-size: 0.85rem;

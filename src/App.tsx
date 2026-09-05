@@ -85,6 +85,12 @@ function cn(...parts: (string | false | undefined | null)[]): string {
 }
 
 const PUBLIC_WORKSPACE_FIELDS = 'id, slug, owner_name, created_at, is_active, has_paid, is_trial, trial_link_id, trial_started_at, trial_ends_at, trial_expired, subscription_started_at, subscription_ends_at, force_sub_warning, revoked_at, revoked_by, revoke_reason';
+const WORKSPACE_STATUS_FIELDS = PUBLIC_WORKSPACE_FIELDS;
+
+function getWorkspacePlanLabel(workspace: Workspace): 'Trial' | 'Paid' | 'Free' {
+  if (workspace.is_trial) return 'Trial';
+  return workspace.has_paid ? 'Paid' : 'Free';
+}
 
 function getWorkspaceSlug(): string | null {
   try {
@@ -858,10 +864,18 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     fetchWorkspaces();
     fetchTrialLinks();
-    // Realtime untuk workspaces
-    const channel = supabase.channel('ws-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'workspaces' }, () => { fetchWorkspaces(); }).subscribe();
+    // Realtime memakai tabel status yang sudah disanitasi; workspaces asli
+    // tidak dibroadcast karena menyimpan password pemilik.
+    const statusChannel = supabase.channel('workspace-status-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'workspace_status_realtime' }, () => { fetchWorkspaces(); })
+      .subscribe();
     const trialChannel = supabase.channel('trial-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'trial_links' }, () => { fetchTrialLinks(); }).subscribe();
-    return () => { supabase.removeChannel(channel); supabase.removeChannel(trialChannel); };
+    const fallbackPoll = window.setInterval(() => { fetchWorkspaces(); }, 5000);
+    return () => {
+      window.clearInterval(fallbackPoll);
+      supabase.removeChannel(statusChannel);
+      supabase.removeChannel(trialChannel);
+    };
   }, []);
 
   // Auto-sync expired trials
@@ -2384,6 +2398,7 @@ function WorkspaceHeader({
   onConnectSheet: () => void;
   showActions?: boolean;
 }) {
+  const planLabel = getWorkspacePlanLabel(workspace);
   return (
     <header className="app-header">
       <div className="app-header-left">
@@ -2393,20 +2408,22 @@ function WorkspaceHeader({
         <div className="app-header-text">
           <div className="header-top-bar">
             <span className="header-workspace-badge">{workspace.owner_name}</span>
-            {workspace.is_trial ? (
+            {planLabel === 'Trial' ? (
               <>
                 <span className="header-status-badge header-status-trial">Trial</span>
                 {workspace.trial_ends_at && <TrialCountdown endTime={workspace.trial_ends_at} />}
               </>
-            ) : workspace.subscription_ends_at ? (
+            ) : planLabel === 'Paid' && workspace.subscription_ends_at ? (
               <>
                 <span className="header-status-badge header-status-paid">Paid</span>
                 <span className="header-sub-info">
                   s/d {new Date(workspace.subscription_ends_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </span>
               </>
-            ) : (
+            ) : planLabel === 'Paid' ? (
               <span className="header-status-badge header-status-paid">Paid</span>
+            ) : (
+              <span className="header-status-badge header-status-free">Free</span>
             )}
           </div>
           <h1>{title}</h1>
@@ -2574,6 +2591,53 @@ export default function App() {
       setWorkspaceChecked(true);
     })();
   }, [devMode]);
+
+  // Workspace plan/status is intentionally delivered through a sanitized
+  // realtime table. The source workspaces table is not in the Realtime
+  // publication because it contains the owner password.
+  const refreshWorkspaceStatus = useCallback(async () => {
+    if (!workspace?.id) return;
+    const { data, error: statusError } = await supabase
+      .from('workspace_status_realtime')
+      .select(WORKSPACE_STATUS_FIELDS)
+      .eq('id', workspace.id)
+      .maybeSingle();
+    if (statusError || !data) return;
+    setWorkspace((current) => current && current.id === workspace.id
+      ? { ...current, ...(data as Workspace) }
+      : current);
+  }, [workspace?.id]);
+
+  useEffect(() => {
+    if (!workspace?.id) return;
+    void refreshWorkspaceStatus();
+    const statusChannel = supabase
+      .channel(`workspace-status-${workspace.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'workspace_status_realtime',
+          filter: `id=eq.${workspace.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'DELETE') return;
+          const updated = payload.new as Partial<Workspace>;
+          setWorkspace((current) => current && current.id === workspace.id
+            ? { ...current, ...updated }
+            : current);
+        },
+      )
+      .subscribe();
+    // A short fallback poll keeps status current if a browser/network drops
+    // the Realtime socket while the user remains on the page.
+    const fallbackPoll = window.setInterval(() => { void refreshWorkspaceStatus(); }, 5000);
+    return () => {
+      window.clearInterval(fallbackPoll);
+      supabase.removeChannel(statusChannel);
+    };
+  }, [workspace?.id, refreshWorkspaceStatus]);
 
   // Fetch sheets
   const fetchSheets = useCallback(async () => {
