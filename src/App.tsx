@@ -2349,6 +2349,78 @@ function TutorialModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+function WorkspaceHeader({
+  workspace,
+  dark,
+  onToggleDark,
+  onOpenTutorial,
+  onConnectSheet,
+}: {
+  workspace: Workspace;
+  dark: boolean;
+  onToggleDark: () => void;
+  onOpenTutorial: () => void;
+  onConnectSheet: () => void;
+}) {
+  return (
+    <header className="app-header">
+      <div className="app-header-left">
+        <div className="app-header-icon">
+          <img src={logoImg} alt="Sheets Logo" className="app-header-logo-img" />
+        </div>
+        <div className="app-header-text">
+          <div className="header-top-bar">
+            <span className="header-workspace-badge">{workspace.owner_name}</span>
+            {workspace.is_trial ? (
+              <>
+                <span className="header-status-badge header-status-trial">Trial</span>
+                {workspace.trial_ends_at && <TrialCountdown endTime={workspace.trial_ends_at} />}
+              </>
+            ) : workspace.subscription_ends_at ? (
+              <>
+                <span className="header-status-badge header-status-paid">Paid</span>
+                <span className="header-sub-info">
+                  s/d {new Date(workspace.subscription_ends_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+              </>
+            ) : (
+              <span className="header-status-badge header-status-paid">Paid</span>
+            )}
+          </div>
+          <h1>Spreadsheets Hub Manager</h1>
+          <p className="header-desc">Spreadsheets Management by Dinur Pradipta</p>
+        </div>
+      </div>
+      <div className="app-header-right">
+        <button
+          className="btn-help-toggle"
+          onClick={onOpenTutorial}
+          title="Tutorial & Panduan Penggunaan"
+          aria-label="Tutorial & Panduan Penggunaan"
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span>Panduan</span>
+        </button>
+        <button className="btn-dark-toggle" onClick={onToggleDark} aria-label={dark ? 'Mode terang' : 'Mode gelap'}>
+          {dark ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          )}
+        </button>
+        <button className="btn-primary-lg" onClick={onConnectSheet}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Hubungkan Sheet Baru
+        </button>
+      </div>
+    </header>
+  );
+}
+
 // ─── Main App ──────────────────────────────────────────────────────
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -2789,35 +2861,46 @@ export default function App() {
   const canAccess = (page: string) => hasPageAccess(workspace!.id, page);
   const navigation = (
     <WorkspaceNavigation
-      workspaceName={workspace!.owner_name}
       activePath={dashboardPath}
-      dark={dark}
-      onToggleDark={() => setDark((value) => !value)}
       onNavigate={navigateDashboard}
       canAccess={canAccess}
+    />
+  );
+  const workspaceHeader = (
+    <WorkspaceHeader
+      workspace={workspace!}
+      dark={dark}
+      onToggleDark={() => setDark((value) => !value)}
+      onOpenTutorial={() => setShowTutorialModal(true)}
+      onConnectSheet={() => setShowConnect(true)}
     />
   );
 
   if (dashboardPath !== '/') {
     return (
       <div className="workspace-dashboard">
-        {navigation}
-        <main className="workspace-dashboard-main">
-          {!canAccess(routeAccess) ? (
-            <div className="business-page">
-              <div className="fetch-error">
-                <p>Role Anda tidak memiliki akses ke halaman ini.</p>
-                <button className="btn-outline" onClick={() => navigateDashboard('/')}>Kembali ke Client & Sheets</button>
+        <div className="workspace-dashboard-main">
+          <div className="workspace-route-header">{workspaceHeader}</div>
+          <main>
+            {!canAccess(routeAccess) ? (
+              <div className="business-page">
+                <div className="fetch-error">
+                  <p>Role Anda tidak memiliki akses ke halaman ini.</p>
+                  <button className="btn-outline" onClick={() => navigateDashboard('/')}>Kembali ke Client & Sheets</button>
+                </div>
               </div>
-            </div>
-          ) : dashboardPath === '/fee-calculator' ? (
-            <FeeCalculatorPage workspace={workspace!} toast={toast} onNavigate={navigateDashboard} />
-          ) : dashboardPath === '/invoices' ? (
-            <DocumentStudio key="invoice-studio" kind="invoice" workspace={workspace!} toast={toast} onNavigate={navigateDashboard} />
-          ) : (
-            <DocumentStudio key="quote-studio" kind="quote" workspace={workspace!} toast={toast} onNavigate={navigateDashboard} />
-          )}
-        </main>
+            ) : dashboardPath === '/fee-calculator' ? (
+              <FeeCalculatorPage workspace={workspace!} toast={toast} onNavigate={navigateDashboard} />
+            ) : dashboardPath === '/invoices' ? (
+              <DocumentStudio key="invoice-studio" kind="invoice" workspace={workspace!} toast={toast} onNavigate={navigateDashboard} />
+            ) : (
+              <DocumentStudio key="quote-studio" kind="quote" workspace={workspace!} toast={toast} onNavigate={navigateDashboard} />
+            )}
+          </main>
+        </div>
+        {navigation}
+        {workspace && <ConnectModal open={showConnect} onClose={() => setShowConnect(false)} onSuccess={handleAfterConnect} workspaceId={workspace.id} toast={toast} />}
+        {showTutorialModal && <TutorialModal onClose={() => setShowTutorialModal(false)} />}
         {showSubWarningModal && subWarningDays !== null && workspace && (
           <SubscriptionExpiringModal workspace={workspace} remainingDays={subWarningDays} onClose={() => setShowSubWarningModal(false)} />
         )}
@@ -2829,65 +2912,10 @@ export default function App() {
   // Main content
   return (
     <div className="workspace-dashboard">
-      {navigation}
       <div className="workspace-dashboard-main">
       <div className="app-shell">
       {/* Header */}
-      <header className="app-header">
-        <div className="app-header-left">
-          <div className="app-header-icon">
-            <img src={logoImg} alt="Sheets Logo" className="app-header-logo-img" />
-          </div>
-          <div className="app-header-text">
-            <div className="header-top-bar">
-              <span className="header-workspace-badge">{workspace!.owner_name}</span>
-              {workspace!.is_trial ? (
-                <>
-                  <span className="header-status-badge header-status-trial">Trial</span>
-                  {workspace!.trial_ends_at && <TrialCountdown endTime={workspace!.trial_ends_at} />}
-                </>
-              ) : workspace!.subscription_ends_at ? (
-                <>
-                  <span className="header-status-badge header-status-paid">Paid</span>
-                  <span className="header-sub-info" style={{ fontSize: '0.68rem', color: 'var(--muted)', marginLeft: 6 }}>
-                    s/d {new Date(workspace!.subscription_ends_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </span>
-                </>
-              ) : (
-                <span className="header-status-badge header-status-paid">Paid</span>
-              )}
-            </div>
-            <h1>Spreadsheets Hub Manager</h1>
-            <p className="header-desc">Spreadsheets Management by Dinur Pradipta</p>
-          </div>
-        </div>
-        <div className="app-header-right">
-          <button
-            className="btn-help-toggle"
-            onClick={() => setShowTutorialModal(true)}
-            title="Tutorial & Panduan Penggunaan"
-            aria-label="Tutorial & Panduan Penggunaan"
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            <span>Panduan</span>
-          </button>
-          <button className="btn-dark-toggle" onClick={() => setDark(!dark)} aria-label={dark ? 'Mode terang' : 'Mode gelap'}>
-            {dark ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            )}
-          </button>
-          <button className="btn-primary-lg" onClick={() => setShowConnect(true)}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Hubungkan Sheet Baru
-          </button>
-        </div>
-      </header>
+      {workspaceHeader}
 
       <div className="app-body">
         {/* Client Panel */}
@@ -3064,6 +3092,7 @@ export default function App() {
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       </div>
     </div>
+    {navigation}
     </div>
   );
 }

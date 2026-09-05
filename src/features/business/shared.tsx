@@ -5,11 +5,9 @@ import {
   ImagePlus,
   LayoutGrid,
   LoaderCircle,
-  Moon,
   Plus,
   ReceiptText,
   RefreshCw,
-  Sun,
   Trash2,
   UploadCloud,
   X,
@@ -418,71 +416,36 @@ const NAV_ITEMS = [
 ] as const;
 
 export function WorkspaceNavigation({
-  workspaceName,
   activePath,
-  dark,
-  onToggleDark,
   onNavigate,
   canAccess,
 }: {
-  workspaceName: string;
   activePath: string;
-  dark: boolean;
-  onToggleDark: () => void;
   onNavigate: (path: string) => void;
   canAccess: (page: string) => boolean;
 }) {
   const visibleItems = NAV_ITEMS.filter((item) => canAccess(item.access));
   const isActive = (path: string) => path === '/' ? activePath === '/' : activePath.startsWith(path);
   return (
-    <>
-      <aside className="workspace-nav" aria-label="Navigasi dashboard">
-        <div className="workspace-nav-brand">
-          <span className="workspace-nav-mark">SH</span>
-          <span><strong>Workspace</strong><small>{workspaceName}</small></span>
-        </div>
-        <p className="workspace-nav-group">Bisnis & Keuangan</p>
-        <nav>
-          {visibleItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                type="button"
-                key={item.path}
-                className={cx('workspace-nav-item', isActive(item.path) && 'is-active')}
-                aria-current={isActive(item.path) ? 'page' : undefined}
-                onClick={() => onNavigate(item.path)}
-              >
-                <Icon size={18} /> <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-        <button type="button" className="workspace-theme-toggle" onClick={onToggleDark}>
-          {dark ? <Sun size={18} /> : <Moon size={18} />}
-          <span>{dark ? 'Mode terang' : 'Mode gelap'}</span>
-        </button>
-      </aside>
-      <nav className="workspace-mobile-nav" aria-label="Navigasi mobile">
-        {visibleItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              type="button"
-              key={item.path}
-              className={cx(isActive(item.path) && 'is-active')}
-              aria-current={isActive(item.path) ? 'page' : undefined}
-              onClick={() => onNavigate(item.path)}
-            >
-              <Icon size={19} /><span>{item.mobileLabel}</span>
-            </button>
-          );
-        })}
-      </nav>
-      <button type="button" className="workspace-mobile-theme" onClick={onToggleDark} aria-label={dark ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'} title={dark ? 'Mode terang' : 'Mode gelap'}>
-        {dark ? <Sun size={18} /> : <Moon size={18} />}
-      </button>
-    </>
+    <nav className="workspace-floating-nav" aria-label="Navigasi utama">
+      {visibleItems.map((item) => {
+        const Icon = item.icon;
+        return (
+          <button
+            type="button"
+            key={item.path}
+            className={cx(isActive(item.path) && 'is-active')}
+            aria-current={isActive(item.path) ? 'page' : undefined}
+            aria-label={item.label}
+            onClick={() => onNavigate(item.path)}
+          >
+            <Icon size={20} aria-hidden="true" />
+            <span className="workspace-nav-label-full">{item.label}</span>
+            <span className="workspace-nav-label-short">{item.mobileLabel}</span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
