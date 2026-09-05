@@ -2880,7 +2880,6 @@ export default function App() {
     return (
       <div className="workspace-dashboard">
         <div className="workspace-dashboard-main">
-          <div className="workspace-route-header">{workspaceHeader}</div>
           <main>
             {!canAccess(routeAccess) ? (
               <div className="business-page">
@@ -2899,8 +2898,6 @@ export default function App() {
           </main>
         </div>
         {navigation}
-        {workspace && <ConnectModal open={showConnect} onClose={() => setShowConnect(false)} onSuccess={handleAfterConnect} workspaceId={workspace.id} toast={toast} />}
-        {showTutorialModal && <TutorialModal onClose={() => setShowTutorialModal(false)} />}
         {showSubWarningModal && subWarningDays !== null && workspace && (
           <SubscriptionExpiringModal workspace={workspace} remainingDays={subWarningDays} onClose={() => setShowSubWarningModal(false)} />
         )}
