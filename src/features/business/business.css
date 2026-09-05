@@ -501,7 +501,7 @@ body.dark .document-editor-summary > div:last-child span { background: rgba(0, 0
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
 }
-.a4-page-body { position: relative; z-index: 1; height: 100%; padding-bottom: 42px; }
+.a4-page-body { position: relative; z-index: 1; height: 100%; min-height: 0; padding-bottom: 42px; }
 .a4-header { min-height: 104px; padding-bottom: 20px; border-bottom: 3px solid var(--doc-accent); display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; }
 .a4-brand { max-width: 380px; display: flex; align-items: flex-start; gap: 14px; }
 .a4-logo { width: 72px; height: 72px; flex: 0 0 72px; object-fit: contain; }
@@ -554,7 +554,12 @@ body.dark .document-editor-summary > div:last-child span { background: rgba(0, 0
 .a4-grand-total strong { font-size: 14px; }
 .a4-terms { max-height: 120px; margin-top: 17px; padding: 11px 13px; overflow: hidden; border-left: 3px solid var(--doc-accent); background: var(--doc-surface); }
 .a4-terms .a4-overline { display: block; margin-bottom: 5px; }
-.a4-footer { position: absolute; z-index: 2; left: 64px; right: 64px; bottom: 30px; padding-top: 10px; border-top: 1px solid var(--doc-border); display: flex; align-items: center; justify-content: space-between; gap: 24px; opacity: .66; font-size: 8px; }
+.a4-footer { position: absolute; z-index: 2; left: 64px; right: 64px; bottom: 30px; padding-top: 10px; border-top: 1px solid var(--doc-border); display: flex; align-items: center; justify-content: space-between; gap: 18px; opacity: .66; font-size: 8px; }
+.a4-footer-main,
+.a4-footer-contact,
+.a4-footer-page { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.a4-footer-contact { flex: 1; text-align: center; }
+.a4-footer-page { text-align: right; }
 .a4-cover-body .a4-introduction { margin-top: 56px; max-width: 570px; }
 .a4-introduction p { margin-top: 12px; font-size: 14px; line-height: 1.75; }
 .a4-additional-head { min-height: 72px; padding-bottom: 14px; border-bottom: 2px solid var(--doc-accent); display: flex; align-items: center; justify-content: space-between; gap: 20px; }
@@ -566,23 +571,310 @@ body.dark .document-editor-summary > div:last-child span { background: rgba(0, 0
 .a4-additional-content p { max-height: 710px; overflow: hidden; font-size: 14px; line-height: 1.8; }
 .a4-detail-title { margin-top: 25px; color: var(--doc-accent); font-size: 20px; }
 
-/* Template variants. These styles stay on the print page so the PDF clone uses the exact same layout. */
-.document-template-project .a4-header { min-height: 122px; border-bottom-width: 1px; }
-.document-template-project .a4-document-identity h1 { letter-spacing: .12em; }
-.document-template-project .a4-recipient-grid { grid-template-columns: 250px 1fr; padding-top: 22px; border-top: 1px solid var(--doc-border); }
-.document-template-project .a4-date-card { border: 0; border-radius: 0; background: transparent; }
-.document-template-project .a4-total-hero { padding-right: 0; padding-left: 0; border-top: 1px solid var(--doc-border); border-bottom: 1px solid var(--doc-border); border-radius: 0; color: var(--doc-text); background: transparent; }
-.document-template-project .a4-items-table th { color: var(--doc-text); border-bottom: 2px solid var(--doc-accent); border-radius: 0 !important; background: transparent; }
-.document-template-project .a4-grand-total { color: var(--doc-text); border-top: 2px solid var(--doc-accent); border-radius: 0; background: transparent; }
-.document-template-corporate .a4-date-card { border-radius: 0; }
+/* Template variants. All rules live on the printed page so the live preview and PDF clone stay identical. */
+.invoice-print-page .a4-page-body {
+  display: flex;
+  flex-direction: column;
+}
+.invoice-print-page .a4-header { order: 1; }
+.invoice-print-page .a4-recipient-grid { order: 2; }
+.invoice-print-page .a4-items-section { order: 3; }
+.invoice-print-page .a4-total-hero { order: 4; }
+.invoice-print-page .a4-summary-grid { order: 5; }
+
+/* Classic ledger — reference 1: soft recipient band, ruled table, and two-column totals. */
+.document-template-classic .a4-header {
+  min-height: 126px;
+  padding-bottom: 14px;
+  border-bottom: 0;
+}
+.document-template-classic .a4-logo-fallback {
+  border-radius: 2px;
+}
+.document-template-classic .a4-document-identity h1 {
+  color: var(--doc-text);
+  font-size: 34px;
+  letter-spacing: .045em;
+}
+.document-template-classic .a4-document-identity strong {
+  color: var(--doc-muted);
+  font-size: 9px;
+  letter-spacing: .04em;
+}
+.document-template-classic .a4-recipient-grid {
+  margin-top: 20px;
+  padding: 17px 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 28px;
+  border: 0;
+  background: var(--doc-surface);
+}
+.document-template-classic .a4-recipient-details {
+  padding-right: 22px;
+  border-right: 1px solid var(--doc-border);
+}
+.document-template-classic .a4-date-card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.document-template-classic .a4-date-card span,
+.document-template-classic .a4-date-card strong {
+  font-size: 9px;
+}
+.document-template-classic .a4-items-section { margin-top: 25px; }
+.document-template-classic .a4-section-heading { display: none; }
+.document-template-classic .a4-items-table th {
+  padding-block: 9px;
+  color: var(--doc-text);
+  border-top: 1px solid var(--doc-accent);
+  border-bottom: 1px solid var(--doc-accent);
+  border-radius: 0 !important;
+  background: transparent;
+}
+.document-template-classic .a4-items-table td { padding-block: 10px; }
+.document-template-classic .a4-total-hero {
+  margin-top: 16px;
+  padding: 15px 18px;
+  border-left: 4px solid var(--doc-accent);
+  border-radius: 0;
+  color: var(--doc-text);
+  background: linear-gradient(135deg, var(--doc-surface), var(--doc-bg));
+}
+.document-template-classic .a4-total-hero span { color: var(--doc-muted); }
+.document-template-classic .a4-summary-grid {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--doc-border);
+}
+.document-template-classic .a4-grand-total { border-radius: 0; }
+
+/* Project minimal — reference 2: editorial title, recipient rail, and table in a right column. */
+.document-template-project .a4-header {
+  position: relative;
+  min-height: 166px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--doc-border);
+  align-items: flex-end;
+}
+.document-template-project .a4-brand {
+  position: absolute;
+  top: 0;
+  right: 0;
+  max-width: 290px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  text-align: right;
+}
+.document-template-project .a4-brand .a4-logo,
+.document-template-project .a4-brand .a4-logo-fallback { display: none; }
+.document-template-project .a4-brand > div { padding-top: 0; gap: 2px; }
+.document-template-project .a4-brand strong { color: var(--doc-muted); font-size: 9px; font-weight: 650; }
+.document-template-project .a4-brand span { color: var(--doc-muted); font-size: 8px; }
+.document-template-project .a4-document-identity {
+  max-width: 410px;
+  justify-items: start;
+  text-align: left;
+}
+.document-template-project .a4-document-identity h1 {
+  color: var(--doc-text);
+  font-size: 29px;
+  letter-spacing: .16em;
+}
+.document-template-project .a4-document-identity strong {
+  color: var(--doc-muted);
+  font-size: 8px;
+  letter-spacing: .05em;
+}
+.invoice-print-page.document-template-project .a4-page-body {
+  display: grid;
+  grid-template-columns: 218px minmax(0, 1fr);
+  grid-template-rows: auto minmax(270px, auto) auto auto;
+  column-gap: 30px;
+  align-content: start;
+}
+.invoice-print-page.document-template-project .a4-header { grid-column: 1 / -1; }
+.invoice-print-page.document-template-project .a4-recipient-grid {
+  grid-column: 1;
+  grid-row: 2;
+  margin-top: 24px;
+  display: block;
+  padding: 0;
+  border: 0;
+}
+.document-template-project .a4-recipient-details { display: grid; gap: 4px; }
+.document-template-project .a4-recipient-grid h2 { font-size: 16px; letter-spacing: .08em; text-transform: uppercase; }
+.document-template-project .a4-date-card {
+  margin-top: 27px;
+  padding: 13px 0 0;
+  border: 0;
+  border-top: 1px solid var(--doc-border);
+  border-radius: 0;
+  background: transparent;
+}
+.document-template-project .a4-date-card div { padding-block: 3px; }
+.document-template-project .a4-date-card span,
+.document-template-project .a4-date-card strong { font-size: 8px; }
+.invoice-print-page.document-template-project .a4-items-section {
+  grid-column: 2;
+  grid-row: 2 / span 2;
+  margin-top: 24px;
+}
+.document-template-project .a4-section-heading { display: none; }
+.document-template-project .a4-items-table th {
+  padding: 9px 8px;
+  color: var(--doc-text);
+  border-top: 1px solid var(--doc-accent);
+  border-bottom: 1px solid var(--doc-accent);
+  border-radius: 0 !important;
+  background: transparent;
+}
+.document-template-project .a4-items-table td { padding: 10px 8px; }
+.invoice-print-page.document-template-project .a4-total-hero {
+  grid-column: 1;
+  grid-row: 3;
+  align-self: end;
+  margin-top: 18px;
+  padding: 14px 0;
+  border-top: 1px solid var(--doc-border);
+  border-bottom: 1px solid var(--doc-border);
+  border-radius: 0;
+  color: var(--doc-text);
+  background: transparent;
+  display: grid;
+  gap: 5px;
+}
+.document-template-project .a4-total-hero span { color: var(--doc-muted); }
+.document-template-project .a4-total-hero strong { font-size: 21px; }
+.invoice-print-page.document-template-project .a4-summary-grid {
+  grid-column: 1 / -1;
+  grid-row: 4;
+  margin-top: 26px;
+  padding-top: 17px;
+  border-top: 1px solid var(--doc-border);
+}
+.document-template-project .a4-grand-total {
+  padding: 10px 0;
+  border-top: 2px solid var(--doc-accent);
+  border-radius: 0;
+  color: var(--doc-text);
+  background: transparent;
+}
+
+/* Corporate grid — reference 3: hard square geometry, dark table head, alternating rows, footer bar. */
+.document-template-corporate .a4-header {
+  min-height: 128px;
+  padding-bottom: 15px;
+  border-bottom: 0;
+}
+.document-template-corporate .a4-logo-fallback {
+  border-radius: 0;
+  background: var(--doc-accent);
+}
+.document-template-corporate .a4-document-identity h1 {
+  color: var(--doc-text);
+  font-size: 35px;
+  letter-spacing: .03em;
+}
+.document-template-corporate .a4-recipient-grid {
+  margin-top: 18px;
+  padding: 17px 0;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  border-top: 1px solid var(--doc-accent);
+  border-bottom: 1px solid var(--doc-accent);
+}
+.document-template-corporate .a4-recipient-details { padding-right: 26px; border-right: 1px solid var(--doc-border); }
+.document-template-corporate .a4-date-card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.document-template-corporate .a4-date-card div { padding-block: 3px; }
+.document-template-corporate .a4-items-section { margin-top: 24px; }
+.document-template-corporate .a4-section-heading { display: none; }
+.document-template-corporate .a4-items-table th {
+  padding-block: 10px;
+  border-radius: 0 !important;
+  background: var(--doc-accent);
+}
+.document-template-corporate .a4-items-table td { padding-block: 10px; }
 .document-template-corporate .a4-items-table tbody tr:nth-child(even) { background: var(--doc-surface); }
-.document-template-corporate .a4-total-hero,
+.document-template-corporate .a4-total-hero {
+  margin-top: 17px;
+  padding: 14px 0;
+  border-top: 1px solid var(--doc-border);
+  border-bottom: 1px solid var(--doc-border);
+  border-radius: 0;
+  color: var(--doc-text);
+  background: transparent;
+}
+.document-template-corporate .a4-total-hero span { color: var(--doc-muted); }
+.document-template-corporate .a4-summary-grid { margin-top: 17px; }
 .document-template-corporate .a4-grand-total { border-radius: 0; }
-.document-template-soft .a4-page-body { padding: 20px; border: 1px solid var(--doc-border); border-radius: 20px; background: var(--doc-surface); }
-.document-template-soft .a4-header { border-bottom-width: 1px; }
-.document-template-soft .a4-total-hero { border-radius: 24px; }
-.document-template-soft .a4-items-table th { color: var(--doc-text); border-radius: 0 !important; background: var(--doc-surface); }
-.document-template-soft .a4-grand-total { color: var(--doc-text); border-radius: 14px; background: var(--doc-surface); }
+.document-template-corporate .a4-footer {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 12px 64px;
+  border-top: 0;
+  color: #fff;
+  background: var(--doc-accent);
+  opacity: 1;
+}
+.document-template-corporate .a4-footer-contact { color: rgba(255, 255, 255, .8); }
+
+/* Soft editorial — reference 4: light frame, fine rules, quiet gray table and restrained totals. */
+.document-template-soft .a4-page-body {
+  padding: 23px 22px 42px;
+  border: 1px solid var(--doc-border);
+  border-radius: 18px;
+  background: var(--doc-bg);
+}
+.document-template-soft .a4-header {
+  min-height: 118px;
+  border-bottom: 1px solid var(--doc-border);
+}
+.document-template-soft .a4-logo-fallback { border-radius: 0; background: transparent; color: var(--doc-accent); border: 1px solid var(--doc-accent); }
+.document-template-soft .a4-document-identity h1 {
+  color: var(--doc-text);
+  font-size: 32px;
+  letter-spacing: .07em;
+}
+.document-template-soft .a4-recipient-grid {
+  margin-top: 20px;
+  padding: 15px 0;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  border-top: 1px solid var(--doc-border);
+  border-bottom: 1px solid var(--doc-border);
+}
+.document-template-soft .a4-recipient-details { padding-right: 22px; border-right: 1px solid var(--doc-border); }
+.document-template-soft .a4-date-card { padding: 0; border: 0; border-radius: 0; background: transparent; }
+.document-template-soft .a4-items-section { margin-top: 22px; }
+.document-template-soft .a4-section-heading { display: none; }
+.document-template-soft .a4-items-table th {
+  padding-block: 9px;
+  color: var(--doc-text);
+  border-radius: 0 !important;
+  background: var(--doc-surface);
+}
+.document-template-soft .a4-items-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--doc-surface) 62%, transparent); }
+.document-template-soft .a4-total-hero {
+  margin-top: 17px;
+  padding: 13px 0;
+  border-top: 1px solid var(--doc-border);
+  border-bottom: 1px solid var(--doc-border);
+  border-radius: 0;
+  color: var(--doc-text);
+  background: transparent;
+}
+.document-template-soft .a4-total-hero span { color: var(--doc-muted); }
+.document-template-soft .a4-grand-total { color: var(--doc-text); border-radius: 0; background: var(--doc-surface); }
+.document-template-soft .a4-footer { left: 86px; right: 86px; }
 
 /* Modals */
 .business-modal-backdrop {

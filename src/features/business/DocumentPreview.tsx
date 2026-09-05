@@ -55,6 +55,12 @@ function DocumentLogo({ document }: { document: BusinessDocument }) {
 }
 
 function PageHeader({ document, continuation = false }: { document: BusinessDocument; continuation?: boolean }) {
+  const variant = document.template?.variant ?? 'classic';
+  const documentTitle = continuation
+    ? `${document.title} · LANJUTAN`
+    : variant === 'project'
+      ? `${document.kind === 'invoice' ? 'PROJECT INVOICE' : 'PROJECT QUOTE'}`
+      : document.title;
   return (
     <div className="a4-header">
       <div className="a4-brand">
@@ -66,7 +72,7 @@ function PageHeader({ document, continuation = false }: { document: BusinessDocu
         </div>
       </div>
       <div className="a4-document-identity">
-        <h1>{continuation ? `${document.title} · LANJUTAN` : document.title}</h1>
+        <h1>{documentTitle}</h1>
         <strong>{document.number}</strong>
       </div>
     </div>
@@ -76,8 +82,9 @@ function PageHeader({ document, continuation = false }: { document: BusinessDocu
 function PageFooter({ document, page, totalPages }: { document: BusinessDocument; page: number; totalPages: number }) {
   return (
     <footer className="a4-footer">
-      <span>{document.footer || document.business.name}</span>
-      <span>{document.number} · Halaman {page} dari {totalPages}</span>
+      <span className="a4-footer-main">{document.footer || document.business.name}</span>
+      <span className="a4-footer-contact">{[document.business.address, document.business.email, document.business.phone].filter(Boolean).join(' · ')}</span>
+      <span className="a4-footer-page">{document.number} · Halaman {page} dari {totalPages}</span>
     </footer>
   );
 }
@@ -86,14 +93,14 @@ function RecipientBlock({ document }: { document: BusinessDocument }) {
   const isInvoice = document.kind === 'invoice';
   return (
     <div className="a4-recipient-grid">
-      <section>
+      <section className="a4-recipient-details">
         <span className="a4-overline">{isInvoice ? 'Ditagihkan kepada' : 'Diajukan kepada'}</span>
         <h2>{document.recipient.companyName || document.recipient.contactName || 'Nama klien'}</h2>
         {document.recipient.companyName && document.recipient.contactName && <strong>{document.recipient.contactName}</strong>}
         <p>{document.recipient.address || 'Alamat penerima'}</p>
         <p>{[document.recipient.email, document.recipient.phone].filter(Boolean).join(' · ')}</p>
       </section>
-      <section className="a4-date-card">
+      <section className="a4-date-card" aria-label="Detail dokumen">
         <div><span>Tanggal</span><strong>{formatDate(document.issueDate)}</strong></div>
         <div><span>{isInvoice ? 'Jatuh tempo' : 'Berlaku sampai'}</span><strong>{formatDate(document.dueDate)}</strong></div>
         <div><span>Status</span><strong className="a4-status">{document.status.toUpperCase()}</strong></div>
@@ -105,7 +112,7 @@ function RecipientBlock({ document }: { document: BusinessDocument }) {
 function GrandTotalHero({ document }: { document: BusinessDocument }) {
   const totals = calculateDocument(document);
   return (
-    <div className="a4-total-hero">
+    <div className="a4-total-hero" aria-label="Total dokumen">
       <span>{document.kind === 'invoice' ? 'Total tagihan' : 'Nilai penawaran'}</span>
       <strong>{formatCurrency(totals.grandTotal, document.currency)}</strong>
     </div>
