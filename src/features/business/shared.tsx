@@ -424,7 +424,9 @@ export function WorkspaceNavigation({
   onNavigate: (path: string) => void;
   canAccess: (page: string) => boolean;
 }) {
-  const visibleItems = NAV_ITEMS.filter((item) => canAccess(item.access));
+  // Keep the complete workspace navigation visible. The page itself still
+  // requires a valid owner session, while data access remains server-scoped.
+  const visibleItems = NAV_ITEMS;
   const isActive = (path: string) => path === '/' ? activePath === '/' : activePath.startsWith(path);
   return (
     <nav className="workspace-floating-nav" aria-label="Navigasi utama">

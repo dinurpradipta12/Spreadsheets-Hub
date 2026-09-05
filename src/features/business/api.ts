@@ -73,7 +73,11 @@ export function clearBusinessAccess(workspaceId?: string): void {
 export function hasPageAccess(workspaceId: string, page: string): boolean {
   if (page === 'sheets') return true;
   const access = getBusinessAccess(workspaceId);
-  return Boolean(access?.token && access.role === 'admin' && access.pages.includes(page));
+  // Every authenticated workspace owner can use all business studios. The
+  // server still validates the owner session and scopes every query by the
+  // session workspace, so this UI helper must not turn page_access into a
+  // second, role-based product restriction.
+  return Boolean(access?.token);
 }
 
 const TERMINAL_SESSION_CODES = new Set([

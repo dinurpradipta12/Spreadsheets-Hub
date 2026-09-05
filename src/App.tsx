@@ -17,7 +17,8 @@ import {
 import { DocumentStudio } from './features/business/DocumentStudio';
 import { FeeCalculatorPage } from './features/business/FeeCalculator';
 import { WorkspaceNavigation } from './features/business/shared';
-import { hasPageAccess, saveBusinessAccess } from './features/business/api';
+import { clearBusinessAccess, hasPageAccess, saveBusinessAccess } from './features/business/api';
+import type { BusinessAccess } from './features/business/types';
 
 // ─── Countdown Hook ────────────────────────────────────────────────
 function useCountdown(endTime: string | null): string {
@@ -525,7 +526,10 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
   setDark: (v: boolean) => void;
   trialCode?: string | null;
 }) {
-  const [mode, setMode] = useState<'create' | 'enter'>(trialCode ? 'create' : 'create');
+  const [mode, setMode] = useState<'create' | 'enter'>(() => {
+    if (trialCode) return 'create';
+    return new URLSearchParams(window.location.search).get('login') === '1' ? 'enter' : 'create';
+  });
   const [name, setName] = useState('');
   const [namePrefix, setNamePrefix] = useState('');
   const [password, setPassword] = useState('');
@@ -2669,30 +2673,26 @@ export default function App() {
   };
 
   const handleEnterWorkspace = async (namePrefix: string, password: string): Promise<boolean> => {
-    // Prefer secure workspace sessions for server-side business APIs. Fallback keeps
-    // existing workspaces usable until migration 011 has been applied.
+    // The owner session is the credential for every business studio. Do not
+    // fall back to the legacy Sheets-only RPC: it cannot issue the token that
+    // the Invoice, Quote, and Fee Calculator APIs require.
     const { data: secureData, error: secureError } = await supabase.rpc('authenticate_business_workspace', {
       p_name: namePrefix.trim(),
       p_password: password.trim()
     });
-    let ws: Workspace | null = null;
-    if (!secureError && secureData && (secureData as any[]).length > 0) {
-      const secureRow = (secureData as any[])[0];
-      ws = secureRow as Workspace;
-      saveBusinessAccess(secureRow.id, {
-        token: secureRow.session_token,
-        role: secureRow.business_role || 'admin',
-        pages: secureRow.page_access || ['sheets', 'fee-calculator', 'invoices', 'quotes'],
-      });
-    } else {
-      const { data, error: err } = await supabase.rpc('authenticate_workspace', {
-        p_name: namePrefix.trim(),
-        p_password: password.trim()
-      });
-      if (err || !data || (data as any[]).length === 0) return false;
-      ws = (data as Workspace[])[0];
-    }
-    if (!ws) return false;
+    if (secureError || !secureData || !Array.isArray(secureData) || secureData.length === 0) return false;
+    const secureRow = secureData[0] as Workspace & {
+      session_token?: string;
+      business_role?: BusinessAccess['role'];
+      page_access?: string[];
+    };
+    if (!secureRow.session_token || !secureRow.id) return false;
+    const ws = secureRow as Workspace;
+    saveBusinessAccess(secureRow.id, {
+      token: secureRow.session_token,
+      role: secureRow.business_role || 'admin',
+      pages: secureRow.page_access || ['sheets', 'fee-calculator', 'invoices', 'quotes'],
+    });
     saveWorkspaceToStorage(ws.slug, ws.owner_name);
     try { window.history.replaceState(null, '', preservePathWithWorkspace(ws.slug)); } catch {}
     if (!ws.is_active) { setWorkspace(ws); setWsLoading(false); setWorkspaceChecked(true); return true; }
@@ -2869,6 +2869,11 @@ export default function App() {
         ? 'quotes'
         : 'sheets';
   const canAccess = (page: string) => hasPageAccess(workspace!.id, page);
+  const requestWorkspaceLogin = () => {
+    clearBusinessAccess(workspace!.id);
+    clearWorkspaceFromStorage();
+    window.location.href = '/?login=1';
+  };
   const navigation = (
     <WorkspaceNavigation
       activePath={dashboardPath}
@@ -2897,8 +2902,8 @@ export default function App() {
             {!canAccess(routeAccess) ? (
               <div className="business-page">
                 <div className="fetch-error">
-                  <p>Role Anda tidak memiliki akses ke halaman ini.</p>
-                  <button className="btn-outline" onClick={() => navigateDashboard('/')}>Kembali ke Client & Sheets</button>
+                  <p>Sesi pemilik workspace belum aktif. Masuk ulang untuk membuka halaman ini.</p>
+                  <button className="btn-outline" onClick={requestWorkspaceLogin}>Masuk Workspace</button>
                 </div>
               </div>
             ) : dashboardPath === '/fee-calculator' ? (

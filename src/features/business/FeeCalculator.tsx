@@ -100,7 +100,9 @@ export function FeeCalculatorPage({
   const firstLoadRef = useRef(true);
   const saveSequenceRef = useRef(0);
   const access = getBusinessAccess(workspace.id);
-  const canManagePricing = Boolean(access?.token && access.role === 'admin');
+  // The workspace password establishes owner access. Fee Calculator is not a
+  // separate role entitlement, so every owner session can manage its data.
+  const canManagePricing = Boolean(access?.token);
 
   const calculations = useMemo(() => calculateFeeCalculator(state), [state]);
   const customTotals = useMemo(

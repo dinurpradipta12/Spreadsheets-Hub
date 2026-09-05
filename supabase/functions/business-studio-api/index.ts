@@ -152,13 +152,13 @@ async function sha256Hex(value: string): Promise<string> {
 }
 
 function requireAccess(session: Session, page: string): void {
-  if (session.role !== 'admin' && !session.page_access.includes(page)) {
+  if (!session.is_owner) {
     throw new Error(`access_denied:${page}`);
   }
 }
 
 function requirePricingRole(session: Session): void {
-  if (!['admin', 'finance', 'pricing'].includes(session.role)) {
+  if (!session.is_owner) {
     throw new Error('access_denied:pricing');
   }
 }
@@ -384,7 +384,7 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'create_fee_quote_draft') {
-      if (session.role !== 'admin' && !session.page_access.some((page) => page === 'quotes' || page === 'fee-calculator')) {
+      if (!session.is_owner) {
         throw new Error('access_denied:quotes');
       }
       const draft = feeDraftSchema.parse(payload.draft);
