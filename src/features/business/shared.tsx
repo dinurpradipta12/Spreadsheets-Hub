@@ -467,10 +467,10 @@ export function BusinessPageHeader({
       <div>
         <div className="business-eyebrow-row">
           <span className="business-eyebrow">{eyebrow}</span>
-          {connection && (
-            <span className={cx('persistence-pill', connection.source === 'server' ? 'is-server' : 'is-recovery')}>
+          {connection?.source === 'recovery' && (
+            <span className="persistence-pill is-recovery">
               <span aria-hidden="true" />
-              {connection.label ?? (connection.source === 'server' ? 'Tersinkron' : 'Recovery perangkat')}
+              {connection.label ?? 'Recovery perangkat'}
             </span>
           )}
         </div>
