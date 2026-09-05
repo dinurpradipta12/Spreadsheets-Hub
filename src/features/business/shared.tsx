@@ -449,39 +449,6 @@ export function WorkspaceNavigation({
   );
 }
 
-export function BusinessPageHeader({
-  eyebrow,
-  title,
-  description,
-  actions,
-  connection,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  actions?: ReactNode;
-  connection?: { source: 'server' | 'recovery'; label?: string };
-}) {
-  return (
-    <header className="business-page-header">
-      <div>
-        <div className="business-eyebrow-row">
-          <span className="business-eyebrow">{eyebrow}</span>
-          {connection?.source === 'recovery' && (
-            <span className="persistence-pill is-recovery">
-              <span aria-hidden="true" />
-              {connection.label ?? 'Recovery perangkat'}
-            </span>
-          )}
-        </div>
-        <h1>{title}</h1>
-        <p>{description}</p>
-      </div>
-      {actions && <div className="business-page-actions">{actions}</div>}
-    </header>
-  );
-}
-
 export function RefreshNumberButton({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" className="business-input-action" onClick={onClick} aria-label="Buat nomor dokumen baru" title="Buat nomor baru">

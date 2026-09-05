@@ -10,6 +10,12 @@
   padding-bottom: calc(104px + env(safe-area-inset-bottom));
 }
 
+.workspace-header-shell {
+  max-width: 1600px;
+  margin-inline: auto;
+  padding: 24px 24px 0;
+}
+
 .workspace-floating-nav {
   position: fixed;
   z-index: 80;
@@ -70,16 +76,15 @@
   min-width: 0;
 }
 
-.business-page-header {
+.business-page-toolbar {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
-.business-page-header > div:first-child { max-width: 720px; }
-.business-eyebrow-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 7px; }
 .business-eyebrow {
   color: var(--accent);
   font-size: .7rem;
@@ -89,32 +94,11 @@
   text-transform: uppercase;
 }
 
-.business-page-header h1,
 .fee-section-heading h2 {
   color: var(--text);
   letter-spacing: -.035em;
   line-height: 1.12;
 }
-
-.business-page-header h1 { font-size: clamp(1.75rem, 3vw, 2.45rem); }
-.business-page-header p { margin-top: 8px; color: var(--muted); line-height: 1.55; }
-.business-page-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
-
-.persistence-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 25px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  color: var(--muted);
-  background: var(--surface);
-  font-size: .7rem;
-  font-weight: 750;
-}
-
-.persistence-pill > span { width: 7px; height: 7px; border-radius: 50%; background: #d69d32; }
-.persistence-pill.is-server > span { background: #4f9d78; box-shadow: 0 0 0 3px rgba(79, 157, 120, .14); }
 
 .business-button,
 .business-icon-button,
@@ -709,10 +693,10 @@ body.dark .unit-price-status.is-active { color: #a3e1be; background: #244b37; }
 }
 
 @media (max-width: 768px) {
+  .workspace-header-shell { padding: 16px 12px 0; }
   .business-page { padding-inline: 14px; padding-top: 18px; }
-  .business-page-header { display: grid; gap: 15px; }
-  .business-page-actions { justify-content: flex-start; }
-  .business-page-actions .business-button { flex: 1 1 calc(50% - 8px); }
+  .business-page-toolbar { justify-content: flex-start; }
+  .business-page-toolbar .business-button { flex: 1 1 calc(50% - 8px); }
   .document-history { grid-template-columns: 1fr; gap: 7px; }
   .document-history-label { display: flex; align-items: center; justify-content: space-between; }
   .fee-component-grid { grid-template-columns: 1fr; }
@@ -757,10 +741,10 @@ body.dark .unit-price-status.is-active { color: #a3e1be; background: #244b37; }
   .workspace-floating-nav button svg { width: 19px; height: 19px; }
   .workspace-nav-label-full { display: none; }
   .workspace-nav-label-short { display: inline; }
-  .business-page-header h1 { font-size: 1.7rem; }
-  .business-page-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .business-page-actions .business-button { width: 100%; min-width: 0; padding-inline: 8px; white-space: normal; }
-  .business-page-actions .fee-save-indicator { min-width: 0; justify-content: center; }
+  .business-page-toolbar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .business-page-toolbar .business-button,
+  .business-page-toolbar .fee-save-indicator { width: 100%; min-width: 0; padding-inline: 8px; white-space: normal; }
+  .business-page-toolbar .fee-save-indicator { justify-content: center; }
   .studio-status-strip { align-items: flex-start; flex-direction: column; }
   .studio-status-strip .business-button { width: 100%; }
   .business-form-grid { grid-template-columns: 1fr; }

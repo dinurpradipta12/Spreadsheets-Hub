@@ -2355,12 +2355,14 @@ function WorkspaceHeader({
   onToggleDark,
   onOpenTutorial,
   onConnectSheet,
+  showActions = true,
 }: {
   workspace: Workspace;
   dark: boolean;
   onToggleDark: () => void;
   onOpenTutorial: () => void;
   onConnectSheet: () => void;
+  showActions?: boolean;
 }) {
   return (
     <header className="app-header">
@@ -2391,7 +2393,7 @@ function WorkspaceHeader({
           <p className="header-desc">Spreadsheets Management by Dinur Pradipta</p>
         </div>
       </div>
-      <div className="app-header-right">
+      {showActions && <div className="app-header-right">
         <button
           className="btn-help-toggle"
           onClick={onOpenTutorial}
@@ -2416,7 +2418,7 @@ function WorkspaceHeader({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Hubungkan Sheet Baru
         </button>
-      </div>
+      </div>}
     </header>
   );
 }
@@ -2873,6 +2875,7 @@ export default function App() {
       onToggleDark={() => setDark((value) => !value)}
       onOpenTutorial={() => setShowTutorialModal(true)}
       onConnectSheet={() => setShowConnect(true)}
+      showActions={dashboardPath === '/'}
     />
   );
 
@@ -2880,6 +2883,7 @@ export default function App() {
     return (
       <div className="workspace-dashboard">
         <div className="workspace-dashboard-main">
+          <div className="workspace-header-shell">{workspaceHeader}</div>
           <main>
             {!canAccess(routeAccess) ? (
               <div className="business-page">

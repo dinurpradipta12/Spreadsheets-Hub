@@ -29,7 +29,6 @@ import { createDocument, createId, generateDocumentNumber } from './defaults';
 import { DocumentA4Preview } from './DocumentPreview';
 import { exportDocumentPdf } from './pdf';
 import {
-  BusinessPageHeader,
   type BusinessToast,
   ConfirmationDialog,
   EditorAccordion,
@@ -473,32 +472,22 @@ export function DocumentStudio({ kind, workspace, toast, onNavigate }: StudioPro
 
   return (
     <div className="business-page document-studio-page">
-      <BusinessPageHeader
-        eyebrow={isInvoice ? 'Invoice Studio' : 'Quotation Studio'}
-        title={isInvoice ? 'Invoice' : 'Penawaran Harga'}
-        description={isInvoice
-          ? 'Buat invoice yang dapat dikustomisasi, disimpan per workspace, dan diexport menjadi PDF tajam untuk dikirim ke klien.'
-          : 'Buat penawaran harga yang dapat dikustomisasi, disimpan per workspace, dan diexport menjadi PDF tajam untuk klien.'}
-        connection={{ source }}
-        actions={(
-          <>
-            {kind === 'quote' && document.status === 'accepted' && (
-              <button type="button" className="business-button business-button-secondary" onClick={createInvoiceFromQuote}>
-                Buat Invoice <ArrowRight size={17} />
-              </button>
-            )}
-            <button type="button" className="business-button business-button-secondary" onClick={requestNew} disabled={saving || exporting}>
-              <FilePlus2 size={17} /> {isInvoice ? 'Invoice Baru' : 'Penawaran Baru'}
-            </button>
-            <LoadingButton className="business-button-primary" busy={saving} busyLabel="Menyimpan..." onClick={() => void handleSave()} disabled={exporting}>
-              <Save size={17} /> {isInvoice ? 'Simpan Invoice' : 'Simpan Penawaran'}
-            </LoadingButton>
-            <LoadingButton className="business-button-accent" busy={exporting} busyLabel="Membuat PDF..." onClick={() => void handleExport()} disabled={saving}>
-              <Download size={17} /> Export PDF HD
-            </LoadingButton>
-          </>
+      <div className="business-page-toolbar" aria-label={isInvoice ? 'Aksi Invoice' : 'Aksi Penawaran Harga'}>
+        {kind === 'quote' && document.status === 'accepted' && (
+          <button type="button" className="business-button business-button-secondary" onClick={createInvoiceFromQuote}>
+            Buat Invoice <ArrowRight size={17} />
+          </button>
         )}
-      />
+        <button type="button" className="business-button business-button-secondary" onClick={requestNew} disabled={saving || exporting}>
+          <FilePlus2 size={17} /> {isInvoice ? 'Invoice Baru' : 'Penawaran Baru'}
+        </button>
+        <LoadingButton className="business-button-primary" busy={saving} busyLabel="Menyimpan..." onClick={() => void handleSave()} disabled={exporting}>
+          <Save size={17} /> {isInvoice ? 'Simpan Invoice' : 'Simpan Penawaran'}
+        </LoadingButton>
+        <LoadingButton className="business-button-accent" busy={exporting} busyLabel="Membuat PDF..." onClick={() => void handleExport()} disabled={saving}>
+          <Download size={17} /> Export PDF HD
+        </LoadingButton>
+      </div>
 
       {(warning || remotePending || dirty) && (
         <div className={cx('studio-status-strip', warning && 'has-warning')} role="status">

@@ -35,7 +35,6 @@ import {
 } from './calculations';
 import { createDefaultFeeCalculator, createId } from './defaults';
 import {
-  BusinessPageHeader,
   type BusinessToast,
   ConfirmationDialog,
   EmptyPanel,
@@ -260,22 +259,14 @@ export function FeeCalculatorPage({
 
   return (
     <div className="business-page fee-calculator-page">
-      <BusinessPageHeader
-        eyebrow="Pricing Workspace"
-        title="Fee Calculator"
-        description="Pusat patokan harga jasa, kalkulasi paket, dan penyusunan draft penawaran yang terhubung ke Quotation Studio."
-        connection={{ source }}
-        actions={(
-          <>
-            <button type="button" className="business-button business-button-secondary" onClick={() => setResetConfirmation(true)} disabled={!canManagePricing}>
-              <RefreshCw size={17} /> Reset
-            </button>
-            <button type="button" className={cx('fee-save-indicator', saveStatus === 'error' && 'is-error')} onClick={() => { if (saveStatus === 'error') void retry(); }} disabled={saveStatus !== 'error'}>
-              {saveIndicator}
-            </button>
-          </>
-        )}
-      />
+      <div className="business-page-toolbar" aria-label="Aksi Fee Calculator">
+        <button type="button" className="business-button business-button-secondary" onClick={() => setResetConfirmation(true)} disabled={!canManagePricing}>
+          <RefreshCw size={17} /> Reset
+        </button>
+        <button type="button" className={cx('fee-save-indicator', saveStatus === 'error' && 'is-error')} onClick={() => { if (saveStatus === 'error') void retry(); }} disabled={saveStatus !== 'error'}>
+          {saveIndicator}
+        </button>
+      </div>
 
       {warning && (
         <div className="studio-status-strip has-warning" role="status">
