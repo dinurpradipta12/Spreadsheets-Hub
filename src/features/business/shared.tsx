@@ -470,7 +470,7 @@ export function BusinessPageHeader({
           {connection && (
             <span className={cx('persistence-pill', connection.source === 'server' ? 'is-server' : 'is-recovery')}>
               <span aria-hidden="true" />
-              {connection.label ?? (connection.source === 'server' ? 'Supabase aktif' : 'Recovery perangkat')}
+              {connection.label ?? (connection.source === 'server' ? 'Tersinkron' : 'Recovery perangkat')}
             </span>
           )}
         </div>
