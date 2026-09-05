@@ -14,6 +14,10 @@ import {
   notifyWorkspaceDeactivated,
   startTelegramBotPoller,
 } from './services/telegram';
+import { DocumentStudio } from './features/business/DocumentStudio';
+import { FeeCalculatorPage } from './features/business/FeeCalculator';
+import { WorkspaceNavigation } from './features/business/shared';
+import { hasPageAccess, saveBusinessAccess } from './features/business/api';
 
 // ─── Countdown Hook ────────────────────────────────────────────────
 function useCountdown(endTime: string | null): string {
@@ -129,6 +133,20 @@ function saveWorkspaceToStorage(slug: string, ownerName: string, isDev = false) 
 
 function clearWorkspaceFromStorage() {
   try { localStorage.removeItem('spreadsheets-hub-workspace'); } catch {}
+}
+
+function getDashboardPath(): string {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (path.startsWith('/fee-calculator')) return '/fee-calculator';
+  if (path.startsWith('/invoices')) return '/invoices';
+  if (path.startsWith('/quotes')) return '/quotes';
+  return '/';
+}
+
+function preservePathWithWorkspace(slug: string): string {
+  const url = new URL(window.location.href);
+  url.searchParams.set('w', slug);
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 async function loadAppSettings(): Promise<Record<string, string>> {
@@ -1571,7 +1589,7 @@ function DevSheetsHub({ onExit, onBackToAdmin }: { onExit: () => void; onBackToA
         if (!ws.is_active) return;
         const { data: sheetsData } = await supabase.from('content_plan_sheets').select('*').eq('workspace_id', ws.id).eq('status', 'active').order('updated_at', { ascending: false });
         setSheets(sheetsData as ContentPlanSheet[]);
-        if (sheetsData && sheetsData.length > 0 && !sheetsData.some((s: ContentPlanSheet) => s.id === selectedId)) {
+        if (sheetsData && sheetsData.length > 0) {
           setSelectedId(sheetsData[0].id);
         }
       } else {
@@ -2358,6 +2376,7 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [iframeError, setIframeError] = useState(false);
   const [dark, setDark] = useState(() => { try { return localStorage.getItem('theme') === 'dark'; } catch { return false; } });
+  const [dashboardPath, setDashboardPath] = useState(getDashboardPath);
 
   useEffect(() => {
     startTelegramBotPoller();
@@ -2367,6 +2386,20 @@ export default function App() {
     document.body.classList.toggle('dark', dark);
     try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch {}
   }, [dark]);
+
+  useEffect(() => {
+    const handlePopState = () => setDashboardPath(getDashboardPath());
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateDashboard = useCallback((target: string) => {
+    const targetUrl = new URL(target, window.location.origin);
+    if (workspace?.slug) targetUrl.searchParams.set('w', workspace.slug);
+    window.history.pushState(null, '', `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+    setDashboardPath(getDashboardPath());
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [workspace?.slug]);
 
   const toast = useCallback((type: ToastMessage['type'], message: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -2446,7 +2479,7 @@ export default function App() {
       if (!ws.is_active) { setWorkspace(ws); setWsLoading(false); setWorkspaceChecked(true); return; }
       setWorkspace(ws);
       saveWorkspaceToStorage(ws.slug, ws.owner_name);
-      try { window.history.replaceState(null, '', `/?w=${ws.slug}`); } catch {}
+      try { window.history.replaceState(null, '', preservePathWithWorkspace(ws.slug)); } catch {}
       setWsLoading(false);
       setWorkspaceChecked(true);
     })();
@@ -2461,11 +2494,11 @@ export default function App() {
     if (err) { setFetchError(err.message); setLoading(false); return; }
     setSheets(data as ContentPlanSheet[]);
     setLoading(false);
-    if (data.length > 0) {
-      const exists = data.some((s) => s.id === selectedId);
-      if (!exists || !selectedId) setSelectedId(data[0].id);
-    } else { setSelectedId(null); }
-  }, [workspace, selectedId]);
+    setSelectedId((current) => {
+      if (data.length === 0) return null;
+      return current && data.some((sheet) => sheet.id === current) ? current : data[0].id;
+    });
+  }, [workspace]);
 
   useEffect(() => {
     if (workspace && workspace.is_active) fetchSheets();
@@ -2536,21 +2569,50 @@ export default function App() {
 
     const { data: ws, error: insertErr } = await supabase.from('workspaces').insert(insertData).select(PUBLIC_WORKSPACE_FIELDS).single();
     if (insertErr || !ws) throw new Error(insertErr?.message || 'Gagal membuat workspace');
+    const { data: businessSession } = await supabase.rpc('authenticate_business_workspace', {
+      p_name: name.trim(),
+      p_password: password.trim(),
+    });
+    const sessionRow = Array.isArray(businessSession) ? businessSession[0] : null;
+    if (sessionRow?.session_token) {
+      saveBusinessAccess(ws.id, {
+        token: sessionRow.session_token,
+        role: sessionRow.business_role || 'admin',
+        pages: sessionRow.page_access || ['sheets', 'fee-calculator', 'invoices', 'quotes'],
+      });
+    }
     saveWorkspaceToStorage(ws.slug, name);
     notifyNewWorkspace(ws as Workspace).catch(() => {});
     window.location.href = `/?w=${ws.slug}`;
   };
 
   const handleEnterWorkspace = async (namePrefix: string, password: string): Promise<boolean> => {
-    // Autentikasi workspace via Database RPC (tanpa membocorkan kolom password ke Network JSON response)
-    const { data, error: err } = await supabase.rpc('authenticate_workspace', {
+    // Prefer secure workspace sessions for server-side business APIs. Fallback keeps
+    // existing workspaces usable until migration 011 has been applied.
+    const { data: secureData, error: secureError } = await supabase.rpc('authenticate_business_workspace', {
       p_name: namePrefix.trim(),
       p_password: password.trim()
     });
-    if (err || !data || (data as any[]).length === 0) return false;
-    const ws = (data as Workspace[])[0];
+    let ws: Workspace | null = null;
+    if (!secureError && secureData && (secureData as any[]).length > 0) {
+      const secureRow = (secureData as any[])[0];
+      ws = secureRow as Workspace;
+      saveBusinessAccess(secureRow.id, {
+        token: secureRow.session_token,
+        role: secureRow.business_role || 'admin',
+        pages: secureRow.page_access || ['sheets', 'fee-calculator', 'invoices', 'quotes'],
+      });
+    } else {
+      const { data, error: err } = await supabase.rpc('authenticate_workspace', {
+        p_name: namePrefix.trim(),
+        p_password: password.trim()
+      });
+      if (err || !data || (data as any[]).length === 0) return false;
+      ws = (data as Workspace[])[0];
+    }
+    if (!ws) return false;
     saveWorkspaceToStorage(ws.slug, ws.owner_name);
-    try { window.history.replaceState(null, '', `/?w=${ws.slug}`); } catch {}
+    try { window.history.replaceState(null, '', preservePathWithWorkspace(ws.slug)); } catch {}
     if (!ws.is_active) { setWorkspace(ws); setWsLoading(false); setWorkspaceChecked(true); return true; }
     setWorkspace(ws);
     setWsLoading(false);
@@ -2616,7 +2678,7 @@ export default function App() {
       })
       .subscribe();
     return () => { supabase.removeChannel(wsChannel); };
-  }, [workspace]);
+  }, [workspace, fetchSheets]);
 
   // Cek trial & subscription expired secara realtime saat user sedang aktif
   useEffect(() => {
@@ -2717,9 +2779,59 @@ export default function App() {
     );
   }
 
+  const routeAccess = dashboardPath === '/fee-calculator'
+    ? 'fee-calculator'
+    : dashboardPath === '/invoices'
+      ? 'invoices'
+      : dashboardPath === '/quotes'
+        ? 'quotes'
+        : 'sheets';
+  const canAccess = (page: string) => hasPageAccess(workspace!.id, page);
+  const navigation = (
+    <WorkspaceNavigation
+      workspaceName={workspace!.owner_name}
+      activePath={dashboardPath}
+      dark={dark}
+      onToggleDark={() => setDark((value) => !value)}
+      onNavigate={navigateDashboard}
+      canAccess={canAccess}
+    />
+  );
+
+  if (dashboardPath !== '/') {
+    return (
+      <div className="workspace-dashboard">
+        {navigation}
+        <main className="workspace-dashboard-main">
+          {!canAccess(routeAccess) ? (
+            <div className="business-page">
+              <div className="fetch-error">
+                <p>Role Anda tidak memiliki akses ke halaman ini.</p>
+                <button className="btn-outline" onClick={() => navigateDashboard('/')}>Kembali ke Client & Sheets</button>
+              </div>
+            </div>
+          ) : dashboardPath === '/fee-calculator' ? (
+            <FeeCalculatorPage workspace={workspace!} toast={toast} onNavigate={navigateDashboard} />
+          ) : dashboardPath === '/invoices' ? (
+            <DocumentStudio key="invoice-studio" kind="invoice" workspace={workspace!} toast={toast} onNavigate={navigateDashboard} />
+          ) : (
+            <DocumentStudio key="quote-studio" kind="quote" workspace={workspace!} toast={toast} onNavigate={navigateDashboard} />
+          )}
+        </main>
+        {showSubWarningModal && subWarningDays !== null && workspace && (
+          <SubscriptionExpiringModal workspace={workspace} remainingDays={subWarningDays} onClose={() => setShowSubWarningModal(false)} />
+        )}
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      </div>
+    );
+  }
+
   // Main content
   return (
-    <div className="app-shell">
+    <div className="workspace-dashboard">
+      {navigation}
+      <div className="workspace-dashboard-main">
+      <div className="app-shell">
       {/* Header */}
       <header className="app-header">
         <div className="app-header-left">
@@ -2950,6 +3062,8 @@ export default function App() {
 
       {/* Toasts */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      </div>
+    </div>
     </div>
   );
 }
