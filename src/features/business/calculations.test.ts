@@ -6,7 +6,14 @@ import {
   nonNegative,
   splitItemsForA4,
 } from './calculations';
-import { agencyInitials, createDefaultFeeCalculator, generateDocumentNumber } from './defaults';
+import {
+  agencyInitials,
+  applyDocumentTemplate,
+  createDefaultFeeCalculator,
+  createDocument,
+  DEFAULT_DOCUMENT_TEMPLATES,
+  generateDocumentNumber,
+} from './defaults';
 
 describe('document calculation utilities', () => {
   it('calculates subtotal, discount, taxable amount, tax, and total without early rounding', () => {
@@ -109,5 +116,27 @@ describe('document numbering', () => {
   it('creates a six-character unambiguous random id in the requested format', () => {
     const number = generateDocumentNumber('invoice', 'PT Bilik Strategi', '2026-09-04');
     expect(number).toMatch(/^INV\/[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}\/BS\/0409\/2026$/);
+  });
+});
+
+describe('document template catalog defaults', () => {
+  it('ships four active one-color themes for invoice and quote documents', () => {
+    expect(DEFAULT_DOCUMENT_TEMPLATES).toHaveLength(4);
+    expect(DEFAULT_DOCUMENT_TEMPLATES.every((template) => template.isActive && template.kind === 'both')).toBe(true);
+    expect(DEFAULT_DOCUMENT_TEMPLATES.map((template) => template.variant)).toEqual(['classic', 'project', 'corporate', 'soft']);
+  });
+
+  it('applies a template to both appearance and the persisted document snapshot', () => {
+    const document = createDocument('invoice', 'Bilik Strategy');
+    const template = DEFAULT_DOCUMENT_TEMPLATES[2];
+    const themed = applyDocumentTemplate(document, template);
+
+    expect(themed.template).toMatchObject({ id: template.id, variant: template.variant, version: template.version });
+    expect(themed.appearance).toMatchObject({
+      font: template.font,
+      backgroundColor: template.backgroundColor,
+      accentColor: template.accentColor,
+      textColor: template.textColor,
+    });
   });
 });

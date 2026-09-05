@@ -30,6 +30,7 @@ export function createQuoteFromFeeDraft(
     quote.dueDate = template.dueDate;
     quote.currency = template.currency;
     quote.appearance = { ...template.appearance };
+    quote.template = { ...template.template };
     quote.business = { ...template.business };
     quote.recipient = { ...template.recipient };
     quote.payment = { ...template.payment };
@@ -51,6 +52,8 @@ export function createInvoiceFromAcceptedQuote(quote: BusinessDocument, workspac
     throw new Error('Invoice hanya dapat dibuat dari penawaran berstatus Diterima.');
   }
   const invoice = createDocument('invoice', workspaceName);
+  invoice.template = { ...quote.template };
+  invoice.appearance = { ...quote.appearance };
   invoice.business = { ...quote.business };
   invoice.recipient = { ...quote.recipient };
   invoice.items = snapshotItems(quote.items);

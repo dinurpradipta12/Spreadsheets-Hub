@@ -25,9 +25,16 @@ import {
   saveRecoveryDraft,
 } from './api';
 import { calculateDocument, formatCurrency } from './calculations';
-import { createDocument, createId, generateDocumentNumber } from './defaults';
+import {
+  applyDocumentTemplate,
+  createDocument,
+  createId,
+  DEFAULT_DOCUMENT_TEMPLATES,
+  generateDocumentNumber,
+} from './defaults';
 import { DocumentA4Preview } from './DocumentPreview';
 import { exportDocumentPdf } from './pdf';
+import { loadDocumentTemplates } from './templateCatalog';
 import {
   type BusinessToast,
   ConfirmationDialog,
@@ -39,12 +46,14 @@ import {
   NumberInput,
   RefreshNumberButton,
   WorkspaceHeaderActionsPortal,
+  DocumentTemplatePicker,
   cx,
 } from './shared';
 import type {
   BusinessDocument,
   DocumentKind,
   DocumentStatus,
+  DocumentTemplate,
   FeeQuoteDraft,
   PersistenceSource,
   StoredDocument,
@@ -96,6 +105,15 @@ function removeTransientQuery(): void {
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
+function firstTemplateForKind(kind: DocumentKind, templates: DocumentTemplate[]): DocumentTemplate {
+  const selected = templates
+    .filter((template) => template.isActive && (template.kind === 'both' || template.kind === kind))
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))[0];
+  if (selected) return selected;
+  return DEFAULT_DOCUMENT_TEMPLATES.find((template) => template.kind === 'both' || template.kind === kind)
+    ?? DEFAULT_DOCUMENT_TEMPLATES[0];
+}
+
 export function DocumentStudio({ kind, workspace, toast, onNavigate }: StudioProps) {
   const [document, setDocument] = useState<BusinessDocument>(() => createDocument(kind, workspace.owner_name));
   const [documents, setDocuments] = useState<StoredDocument[]>([]);
@@ -114,6 +132,8 @@ export function DocumentStudio({ kind, workspace, toast, onNavigate }: StudioPro
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [openSections, setOpenSections] = useState<Set<string>>(() => new Set(['identity', 'items']));
   const [ready, setReady] = useState(false);
+  const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
   const previewRef = useRef<HTMLDivElement>(null);
   const savingRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -126,6 +146,38 @@ export function DocumentStudio({ kind, workspace, toast, onNavigate }: StudioPro
 
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCatalog = async () => {
+      const result = await loadDocumentTemplates(false);
+      if (cancelled) return;
+      setTemplates(result.data);
+      setTemplatesLoading(false);
+      if (!selectedIdRef.current && !dirtyRef.current) {
+        const selected = firstTemplateForKind(kind, result.data);
+        setDocument((current) => (
+          current.template.id === selected.id && current.template.version === selected.version
+            ? current
+            : applyDocumentTemplate(current, selected)
+        ));
+      }
+    };
+    void loadCatalog();
+
+    const channel = supabase
+      .channel(`document-template-catalog-${kind}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'app_document_templates',
+      }, () => { void loadCatalog(); })
+      .subscribe();
+    return () => {
+      cancelled = true;
+      void supabase.removeChannel(channel);
+    };
+  }, [kind]);
 
   const loadHistory = useCallback(async (selectLatest = false) => {
     setLoading(true);
@@ -163,10 +215,10 @@ export function DocumentStudio({ kind, workspace, toast, onNavigate }: StudioPro
       setDocument(activeDocument.data);
     } else if (selectedIdRef.current) {
       setSelectedId(null);
-      setDocument(createDocument(kind, workspace.owner_name));
+      setDocument(createDocument(kind, workspace.owner_name, firstTemplateForKind(kind, templates)));
     }
     setRemotePending(false);
-  }, [kind, workspace.id, workspace.owner_name]);
+  }, [kind, templates, workspace.id, workspace.owner_name]);
 
   useEffect(() => {
     let cancelled = false;
@@ -325,13 +377,13 @@ export function DocumentStudio({ kind, workspace, toast, onNavigate }: StudioPro
 
   const resetToNew = useCallback(() => {
     clearRecoveryDraft(workspace.id, kind);
-    setDocument(createDocument(kind, workspace.owner_name));
+    setDocument(createDocument(kind, workspace.owner_name, firstTemplateForKind(kind, templates)));
     setSelectedId(null);
     setDirty(false);
     setRemotePending(false);
     setErrors({});
     setNewConfirmation(false);
-  }, [kind, workspace.id, workspace.owner_name]);
+  }, [kind, templates, workspace.id, workspace.owner_name]);
 
   const requestNew = () => {
     if (dirty) setNewConfirmation(true);
@@ -664,6 +716,13 @@ export function DocumentStudio({ kind, workspace, toast, onNavigate }: StudioPro
         </aside>
 
         <main className="document-preview-column">
+          <DocumentTemplatePicker
+            kind={kind}
+            templates={templates}
+            selectedTemplateId={document.template.id}
+            loading={templatesLoading}
+            onSelect={(template) => updateDocument((current) => applyDocumentTemplate(current, template))}
+          />
           <DocumentA4Preview document={document} containerRef={previewRef} />
         </main>
       </div>

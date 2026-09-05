@@ -15,6 +15,7 @@ import {
   startTelegramBotPoller,
 } from './services/telegram';
 import { DocumentStudio } from './features/business/DocumentStudio';
+import { DocumentTemplateManager } from './features/business/DocumentTemplateManager';
 import { FeeCalculatorPage } from './features/business/FeeCalculator';
 import { WorkspaceNavigation } from './features/business/shared';
 import { clearBusinessAccess, hasPageAccess, saveBusinessAccess } from './features/business/api';
@@ -762,7 +763,7 @@ function LandingPage({ onCreateWorkspace, onEnterWorkspace, dark, setDark, trial
 
 // ─── Developer Panel ───────────────────────────────────────────────
 function DeveloperPanel({ onExit }: { onExit: () => void }) {
-  const [tab, setTab] = useState<'admin' | 'trial_users' | 'app' | 'trials' | 'settings'>('admin');
+  const [tab, setTab] = useState<'admin' | 'trial_users' | 'app' | 'trials' | 'settings' | 'templates'>('admin');
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -771,6 +772,9 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
   const [toast, setToast] = useState<{ type: string; msg: string } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [sheetsCountMap, setSheetsCountMap] = useState<Record<string, number>>({});
+  const handleTemplateToast = useCallback((type: 'success' | 'error' | 'info', message: string) => {
+    setToast({ type, msg: message });
+  }, []);
 
   // Trial links state
   const [trialLinks, setTrialLinks] = useState<TrialLink[]>([]);
@@ -1101,6 +1105,7 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
             </button>
             <button className={cn('dev-tab-btn', tab === 'trials' && 'dev-tab-btn-active')} onClick={() => setTab('trials')}>Trial Links</button>
             <button className={cn('dev-tab-btn', tab === 'app' && 'dev-tab-btn-active')} onClick={() => setTab('app')}>Sheets Hub</button>
+            <button className={cn('dev-tab-btn', tab === 'templates' && 'dev-tab-btn-active')} onClick={() => setTab('templates')}>Template Dokumen</button>
             <button className={cn('dev-tab-btn', tab === 'settings' && 'dev-tab-btn-active')} onClick={() => setTab('settings')}>Settings</button>
           </div>
           <button className="dev-share-btn" onClick={handleCopyShareLink} aria-label="Salin link untuk dibagikan">
@@ -1134,6 +1139,8 @@ function DeveloperPanel({ onExit }: { onExit: () => void }) {
 
       {tab === 'app' ? (
         <DevSheetsHub onExit={onExit} onBackToAdmin={() => setTab('admin')} />
+      ) : tab === 'templates' ? (
+        <DocumentTemplateManager onToast={handleTemplateToast} />
       ) : tab === 'trial_users' ? (
         <>
           {/* ─── Trial Users Tab ─── */}

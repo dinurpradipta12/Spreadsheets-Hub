@@ -1,17 +1,21 @@
 import {
+  Building2,
   Calculator,
   ChevronDown,
   FileText,
   ImagePlus,
   LayoutGrid,
+  LayoutList,
   LoaderCircle,
   Plus,
   ReceiptText,
   RefreshCw,
+  Sparkles,
   Trash2,
   UploadCloud,
   X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
   type ChangeEvent,
   type CSSProperties,
@@ -22,13 +26,76 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import type { DocumentKind, LineItem } from './types';
+import type { DocumentKind, DocumentTemplate, LineItem } from './types';
 import { formatCurrency, nonNegative } from './calculations';
 import { createId } from './defaults';
 import { compressImage } from './media';
 import { uploadBusinessImage } from './api';
 
 export type BusinessToast = (type: 'success' | 'error' | 'info', message: string) => void;
+
+const TEMPLATE_ICONS: Record<string, LucideIcon> = {
+  'file-text': FileText,
+  'layout-list': LayoutList,
+  'building-2': Building2,
+  sparkles: Sparkles,
+  'receipt-text': ReceiptText,
+};
+
+export function DocumentTemplateIcon({ name, size = 18 }: { name: string; size?: number }) {
+  const Icon = TEMPLATE_ICONS[name] ?? FileText;
+  return <Icon size={size} strokeWidth={1.7} aria-hidden="true" />;
+}
+
+export function DocumentTemplatePicker({
+  kind,
+  templates,
+  selectedTemplateId,
+  loading = false,
+  onSelect,
+}: {
+  kind: DocumentKind;
+  templates: DocumentTemplate[];
+  selectedTemplateId: string;
+  loading?: boolean;
+  onSelect: (template: DocumentTemplate) => void;
+}) {
+  const available = templates
+    .filter((template) => template.isActive && (template.kind === 'both' || template.kind === kind))
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  return (
+    <section className="document-template-picker" aria-label={`Pilihan template ${kind === 'invoice' ? 'invoice' : 'penawaran'}`}>
+      <div className="document-template-heading">
+        <div>
+          <span className="document-template-kicker">TEMPLATE {kind === 'invoice' ? 'INVOICE' : 'PENAWARAN'}</span>
+          <strong>Pilih tampilan dokumen</strong>
+        </div>
+        <small>{loading ? 'Memuat katalog…' : `${available.length} pilihan`}</small>
+      </div>
+      <div className="document-template-chips" role="listbox" aria-label="Daftar template dokumen">
+        {available.map((template) => {
+          const selected = template.id === selectedTemplateId;
+          return (
+            <button
+              type="button"
+              key={template.id}
+              className={cx('document-template-chip', selected && 'is-active')}
+              style={{ '--template-accent': template.accentColor } as CSSProperties}
+              role="option"
+              aria-selected={selected}
+              title={template.description}
+              onClick={() => onSelect(template)}
+            >
+              <DocumentTemplateIcon name={template.icon} size={17} />
+              <span>{template.name}</span>
+            </button>
+          );
+        })}
+        {!loading && available.length === 0 && <span className="document-template-empty">Belum ada template aktif.</span>}
+      </div>
+    </section>
+  );
+}
 
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');

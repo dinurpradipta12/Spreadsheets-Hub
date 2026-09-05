@@ -2,6 +2,8 @@ import type {
   AddOnItem,
   BusinessDocument,
   DocumentKind,
+  DocumentTemplate,
+  DocumentTemplateSnapshot,
   FeeCalculatorState,
   LivingCostItem,
   OperationalItem,
@@ -11,6 +13,113 @@ import type {
 
 const RANDOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const IGNORED_AGENCY_WORDS = new Set(['PT', 'CV', 'UD', 'FA', 'TB', 'LTD', 'INC', 'YAYASAN']);
+
+export const DEFAULT_DOCUMENT_TEMPLATES: DocumentTemplate[] = [
+  {
+    id: 'classic-ledger',
+    name: 'Klasik Ledger',
+    description: 'Header tegas, blok penerima lembut, dan tabel yang rapi.',
+    icon: 'file-text',
+    kind: 'both',
+    variant: 'classic',
+    font: 'Inter/Sans',
+    accentColor: '#24324A',
+    backgroundColor: '#FFFFFF',
+    textColor: '#1F2937',
+    surfaceColor: '#F3F4F6',
+    borderColor: '#D7DCE4',
+    mutedColor: '#667085',
+    sortOrder: 0,
+    isActive: true,
+    version: 1,
+  },
+  {
+    id: 'project-minimal',
+    name: 'Minimal Proyek',
+    description: 'Ruang putih luas dengan komposisi editorial yang ringan.',
+    icon: 'layout-list',
+    kind: 'both',
+    variant: 'project',
+    font: 'Inter/Sans',
+    accentColor: '#111827',
+    backgroundColor: '#FFFFFF',
+    textColor: '#1F2937',
+    surfaceColor: '#F8FAFC',
+    borderColor: '#D1D5DB',
+    mutedColor: '#6B7280',
+    sortOrder: 1,
+    isActive: true,
+    version: 1,
+  },
+  {
+    id: 'corporate-grid',
+    name: 'Corporate Grid',
+    description: 'Kontras satu warna dengan tabel dan total yang kuat.',
+    icon: 'building-2',
+    kind: 'both',
+    variant: 'corporate',
+    font: 'Arial',
+    accentColor: '#374151',
+    backgroundColor: '#FFFFFF',
+    textColor: '#111827',
+    surfaceColor: '#E5E7EB',
+    borderColor: '#CBD5E1',
+    mutedColor: '#64748B',
+    sortOrder: 2,
+    isActive: true,
+    version: 1,
+  },
+  {
+    id: 'soft-editorial',
+    name: 'Soft Editorial',
+    description: 'Latar abu lembut dengan detail yang tenang dan modern.',
+    icon: 'sparkles',
+    kind: 'both',
+    variant: 'soft',
+    font: 'Inter/Sans',
+    accentColor: '#56687A',
+    backgroundColor: '#F8FAFC',
+    textColor: '#24324A',
+    surfaceColor: '#E8EEF2',
+    borderColor: '#D6E0E6',
+    mutedColor: '#718096',
+    sortOrder: 3,
+    isActive: true,
+    version: 1,
+  },
+];
+
+export function templateSnapshot(template: DocumentTemplate): DocumentTemplateSnapshot {
+  return {
+    id: template.id,
+    name: template.name,
+    description: template.description,
+    icon: template.icon,
+    variant: template.variant,
+    font: template.font,
+    accentColor: template.accentColor,
+    backgroundColor: template.backgroundColor,
+    textColor: template.textColor,
+    surfaceColor: template.surfaceColor,
+    borderColor: template.borderColor,
+    mutedColor: template.mutedColor,
+    version: template.version,
+  };
+}
+
+export function applyDocumentTemplate<T extends BusinessDocument>(document: T, template: DocumentTemplate): T {
+  return {
+    ...document,
+    template: templateSnapshot(template),
+    appearance: {
+      ...document.appearance,
+      font: template.font,
+      backgroundColor: template.backgroundColor,
+      accentColor: template.accentColor,
+      textColor: template.textColor,
+    },
+  };
+}
 
 export function createId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -33,7 +142,7 @@ export function agencyInitials(name: string): string {
     .trim()
     .split(/\s+/)
     .map((word) => word.replace(/[^A-Za-z0-9]/g, '').toUpperCase())
-    .filter((word) => word && !IGNORED_AGENCY_WORDS.has(word))
+    .filter((word) => word && !IGNORED_AGENCY_WORDS.has(word));
   if (words.length === 1) return words[0];
   return words.slice(0, 2).map((word) => word[0]).join('') || 'AG';
 }
@@ -59,8 +168,9 @@ export function generateDocumentNumber(kind: DocumentKind, businessName: string,
   return `${kind === 'invoice' ? 'INV' : 'QTN'}/${randomDocumentId()}/${agencyInitials(businessName)}/${day}${month}/${year}`;
 }
 
-export function createDocument(kind: DocumentKind, workspaceName: string): BusinessDocument {
+export function createDocument(kind: DocumentKind, workspaceName: string, template?: DocumentTemplate): BusinessDocument {
   const issueDate = localDateInput();
+  const selectedTemplate = template ?? DEFAULT_DOCUMENT_TEMPLATES[0];
   return {
     id: createId(),
     kind,
@@ -71,13 +181,14 @@ export function createDocument(kind: DocumentKind, workspaceName: string): Busin
     currency: 'IDR',
     status: 'draft',
     appearance: {
-      font: 'Inter/Sans',
-      backgroundColor: '#FFFFFF',
-      accentColor: '#24324A',
-      textColor: '#1F2937',
+      font: selectedTemplate.font,
+      backgroundColor: selectedTemplate.backgroundColor,
+      accentColor: selectedTemplate.accentColor,
+      textColor: selectedTemplate.textColor,
       backgroundImageUrl: '',
       backgroundImagePath: '',
     },
+    template: templateSnapshot(selectedTemplate),
     business: {
       logoUrl: '',
       logoPath: '',

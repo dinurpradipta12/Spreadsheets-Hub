@@ -23,6 +23,7 @@ describe('Fee Calculator -> Quote -> Invoice snapshot workflow', () => {
     const invoiceTotals = calculateDocument(invoice);
 
     expect(invoice.sourceQuoteId).toBe(quote.id);
+    expect(invoice.template).toEqual(quote.template);
     expect(invoice.items).not.toBe(quote.items);
     expect(invoice.items.map((item) => item.unitPrice)).toEqual([250_000, 400_000]);
     expect(invoiceTotals).toEqual(quoteTotals);
@@ -59,6 +60,7 @@ describe('Fee Calculator -> Quote -> Invoice snapshot workflow', () => {
     expect(imported.business.logoUrl).toBe(template.business.logoUrl);
     expect(imported.recipient.companyName).toBe('Klien Tetap');
     expect(imported.appearance.accentColor).toBe('#F26B5E');
+    expect(imported.template).toEqual(template.template);
     expect(imported.currency).toBe('SGD');
     expect(imported.sourceFeeCalculationId).toBe('draft-4');
   });

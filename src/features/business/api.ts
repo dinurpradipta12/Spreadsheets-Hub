@@ -160,6 +160,7 @@ function hydrateDocument(kind: DocumentKind, workspaceName: string, input: Parti
     id: input.id || fallback.id,
     kind,
     appearance: { ...fallback.appearance, ...(input.appearance ?? {}) },
+    template: { ...fallback.template, ...(input.template ?? {}) },
     business: { ...fallback.business, ...(input.business ?? {}) },
     recipient: { ...fallback.recipient, ...(input.recipient ?? {}) },
     payment: { ...fallback.payment, ...(input.payment ?? {}) },

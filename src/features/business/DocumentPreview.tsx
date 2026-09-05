@@ -24,6 +24,9 @@ function pageStyle(document: BusinessDocument): CSSProperties {
     '--doc-accent': document.appearance.accentColor,
     '--doc-text': document.appearance.textColor,
     '--doc-bg': document.appearance.backgroundColor,
+    '--doc-surface': document.template?.surfaceColor ?? '#F3F4F6',
+    '--doc-border': document.template?.borderColor ?? '#D7DCE4',
+    '--doc-muted': document.template?.mutedColor ?? '#667085',
     '--doc-font': FONT_STACKS[document.appearance.font],
     backgroundColor: document.appearance.backgroundColor,
     backgroundImage,
@@ -192,7 +195,7 @@ function InvoicePreview({ document }: { document: BusinessDocument }) {
       {itemPages.map((items, index) => (
         <article
           key={`invoice-${index}`}
-          className="document-print-page invoice-print-page"
+          className={`document-print-page invoice-print-page document-template-${document.template?.variant ?? 'classic'}`}
           style={pageStyle(document)}
           data-page-number={index + 1}
         >
@@ -219,7 +222,7 @@ function QuotePreview({ document }: { document: BusinessDocument }) {
       {hasAdditionalPages && (() => {
         const pageNumber = 1;
         return (
-          <article className="document-print-page quote-print-page" style={pageStyle(document)} data-page-number={pageNumber}>
+          <article className={`document-print-page quote-print-page document-template-${document.template?.variant ?? 'classic'}`} style={pageStyle(document)} data-page-number={pageNumber}>
             <div className="a4-page-body a4-cover-body">
               <PageHeader document={document} />
               <RecipientBlock document={document} />
@@ -240,7 +243,7 @@ function QuotePreview({ document }: { document: BusinessDocument }) {
         .map((additionalPage, additionalIndex) => {
           const currentPage = additionalIndex + 2;
           return (
-            <article key={additionalPage.id} className="document-print-page quote-print-page" style={pageStyle(document)} data-page-number={currentPage}>
+            <article key={additionalPage.id} className={`document-print-page quote-print-page document-template-${document.template?.variant ?? 'classic'}`} style={pageStyle(document)} data-page-number={currentPage}>
               <div className="a4-page-body">
                 <div className="a4-additional-head">
                   <DocumentLogo document={document} />
@@ -261,7 +264,7 @@ function QuotePreview({ document }: { document: BusinessDocument }) {
         const currentPage = (hasAdditionalPages ? document.additionalPages.length + 1 : 0) + index + 1;
         const isLast = index === itemPages.length - 1;
         return (
-          <article key={`quote-items-${index}`} className="document-print-page quote-print-page" style={pageStyle(document)} data-page-number={currentPage}>
+          <article key={`quote-items-${index}`} className={`document-print-page quote-print-page document-template-${document.template?.variant ?? 'classic'}`} style={pageStyle(document)} data-page-number={currentPage}>
             <div className="a4-page-body">
               <PageHeader document={document} continuation={index > 0 || hasAdditionalPages} />
               {!hasAdditionalPages && index === 0 && <><RecipientBlock document={document} /><GrandTotalHero document={document} /></>}
@@ -288,7 +291,7 @@ export function DocumentA4Preview({
     <div className="document-preview-panel">
       <div className="document-preview-toolbar">
         <div><strong>Live Preview A4</strong><span>794 × 1123 px · sumber PDF 210 × 297 mm</span></div>
-        <span>{document.kind === 'invoice' ? 'Invoice' : 'Penawaran'}</span>
+        <span>{document.template?.name || (document.kind === 'invoice' ? 'Invoice' : 'Penawaran')}</span>
       </div>
       <div className="document-preview-scroll">
         <div className="document-pages" ref={containerRef}>

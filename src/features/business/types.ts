@@ -13,6 +13,48 @@ export type DocumentFont =
   | 'Times New Roman'
   | 'Courier New';
 
+export type DocumentTemplateKind = 'invoice' | 'quote' | 'both';
+
+export type DocumentTemplateVariant = 'classic' | 'project' | 'corporate' | 'soft';
+
+export type DocumentTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  kind: DocumentTemplateKind;
+  variant: DocumentTemplateVariant;
+  font: DocumentFont;
+  accentColor: string;
+  backgroundColor: string;
+  textColor: string;
+  surfaceColor: string;
+  borderColor: string;
+  mutedColor: string;
+  sortOrder: number;
+  isActive: boolean;
+  version: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type DocumentTemplateSnapshot = Pick<
+  DocumentTemplate,
+  | 'id'
+  | 'name'
+  | 'description'
+  | 'icon'
+  | 'variant'
+  | 'font'
+  | 'accentColor'
+  | 'backgroundColor'
+  | 'textColor'
+  | 'surfaceColor'
+  | 'borderColor'
+  | 'mutedColor'
+  | 'version'
+>;
+
 export type LineItem = {
   id: string;
   description: string;
@@ -71,6 +113,7 @@ export type BusinessDocument = {
   currency: CurrencyCode;
   status: DocumentStatus;
   appearance: DocumentAppearance;
+  template: DocumentTemplateSnapshot;
   business: BusinessIdentity;
   recipient: RecipientIdentity;
   items: LineItem[];
