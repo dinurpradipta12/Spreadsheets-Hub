@@ -72,7 +72,7 @@
   width: 100%;
   max-width: 1760px;
   margin-inline: auto;
-  padding: 28px clamp(18px, 2.4vw, 38px) 54px;
+  padding: 4px clamp(18px, 2.4vw, 38px) 54px;
   min-width: 0;
 }
 
@@ -694,7 +694,7 @@ body.dark .unit-price-status.is-active { color: #a3e1be; background: #244b37; }
 
 @media (max-width: 768px) {
   .workspace-header-shell { padding: 16px 12px 0; }
-  .business-page { padding-inline: 14px; padding-top: 18px; }
+  .business-page { padding-inline: 14px; padding-top: 4px; }
   .business-page-toolbar { justify-content: flex-start; }
   .business-page-toolbar .business-button { flex: 1 1 calc(50% - 8px); }
   .document-history { grid-template-columns: 1fr; gap: 7px; }

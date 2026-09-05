@@ -143,6 +143,13 @@ function getDashboardPath(): string {
   return '/';
 }
 
+function getWorkspaceHeaderTitle(path: string): string {
+  if (path === '/fee-calculator') return 'Fee Calculator';
+  if (path === '/invoices') return 'Invoice Management';
+  if (path === '/quotes') return 'Penawaran Harga';
+  return 'Spreadsheets Hub Manager';
+}
+
 function preservePathWithWorkspace(slug: string): string {
   const url = new URL(window.location.href);
   url.searchParams.set('w', slug);
@@ -2351,6 +2358,7 @@ function TutorialModal({ onClose }: { onClose: () => void }) {
 
 function WorkspaceHeader({
   workspace,
+  title,
   dark,
   onToggleDark,
   onOpenTutorial,
@@ -2358,6 +2366,7 @@ function WorkspaceHeader({
   showActions = true,
 }: {
   workspace: Workspace;
+  title: string;
   dark: boolean;
   onToggleDark: () => void;
   onOpenTutorial: () => void;
@@ -2389,7 +2398,7 @@ function WorkspaceHeader({
               <span className="header-status-badge header-status-paid">Paid</span>
             )}
           </div>
-          <h1>Spreadsheets Hub Manager</h1>
+          <h1>{title}</h1>
           <p className="header-desc">Spreadsheets Management by Dinur Pradipta</p>
         </div>
       </div>
@@ -2871,6 +2880,7 @@ export default function App() {
   const workspaceHeader = (
     <WorkspaceHeader
       workspace={workspace!}
+      title={getWorkspaceHeaderTitle(dashboardPath)}
       dark={dark}
       onToggleDark={() => setDark((value) => !value)}
       onOpenTutorial={() => setShowTutorialModal(true)}
