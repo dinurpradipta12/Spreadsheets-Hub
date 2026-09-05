@@ -876,6 +876,113 @@ body.dark .document-editor-summary > div:last-child span { background: rgba(0, 0
 .document-template-soft .a4-grand-total { color: var(--doc-text); border-radius: 0; background: var(--doc-surface); }
 .document-template-soft .a4-footer { left: 86px; right: 86px; }
 
+/* Reference pass: invoice pages use fewer rules and reserve whitespace for the
+   same visual anchors shown in the supplied artwork. */
+.invoice-print-page .a4-total-hero { display: none; }
+.invoice-print-page .a4-summary-grid {
+  order: 4;
+  margin-top: 25px;
+  padding-top: 0;
+  border-top: 0;
+}
+.invoice-print-page .a4-items-table td { border-bottom-color: color-mix(in srgb, var(--doc-border) 62%, transparent); }
+.a4-invoice-total-due {
+  position: relative;
+  min-height: 74px;
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 5px;
+}
+.a4-invoice-total-due span {
+  color: var(--doc-text);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.a4-invoice-total-due strong { position: relative; z-index: 1; font-size: 23px; letter-spacing: -.03em; }
+.invoice-print-page .a4-payment-and-notes { gap: 23px; }
+
+/* Classic: the only filled surface is the recipient band; totals stay open. */
+.invoice-print-page.document-template-classic .a4-items-section { margin-top: 25px; }
+.invoice-print-page.document-template-classic .a4-summary-grid { grid-template-columns: minmax(0, 1fr) 270px; gap: 42px; }
+.invoice-print-page.document-template-classic .a4-invoice-total-due {
+  padding: 8px 14px 10px 1px;
+}
+.invoice-print-page.document-template-classic .a4-invoice-total-due::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25px;
+  width: 150px;
+  height: 48px;
+  opacity: .42;
+  background: repeating-linear-gradient(135deg, transparent 0 5px, var(--doc-border) 5px 6px);
+}
+.invoice-print-page.document-template-classic .a4-totals > div { padding-block: 2px; }
+.invoice-print-page.document-template-classic .a4-grand-total { margin-top: 8px; }
+.invoice-print-page.document-template-classic .a4-footer-contact { color: var(--doc-muted); }
+
+/* Project: one horizontal rule starts the right-hand table; there is no card
+   around the page and no decorative total banner. */
+.invoice-print-page.document-template-project .a4-page-body {
+  grid-template-rows: auto minmax(372px, auto) auto;
+}
+.invoice-print-page.document-template-project .a4-items-section { grid-row: 2; }
+.invoice-print-page.document-template-project .a4-summary-grid {
+  grid-row: 3;
+  margin-top: 34px;
+  padding-top: 0;
+  border-top: 0;
+}
+.invoice-print-page.document-template-project .a4-summary-grid { grid-template-columns: 218px minmax(0, 1fr); gap: 30px; }
+.invoice-print-page.document-template-project .a4-invoice-total-due { padding-top: 3px; }
+.invoice-print-page.document-template-project .a4-invoice-total-due strong { font-size: 21px; }
+.invoice-print-page.document-template-project .a4-totals { padding-top: 1px; }
+.invoice-print-page.document-template-project .a4-grand-total { margin-top: 9px; }
+.invoice-print-page.document-template-project .a4-footer { left: 70px; right: 70px; }
+
+/* Corporate: hard geometry is reserved for the table header and grand total;
+   metadata and the footer remain quiet. */
+.invoice-print-page.document-template-corporate .a4-recipient-grid {
+  border-top: 0;
+  border-bottom: 1px solid var(--doc-border);
+}
+.invoice-print-page.document-template-corporate .a4-summary-grid { grid-template-columns: minmax(0, 1fr) 270px; gap: 42px; }
+.invoice-print-page.document-template-corporate .a4-invoice-total-due { padding-top: 6px; }
+.invoice-print-page.document-template-corporate .a4-invoice-total-due strong { padding-bottom: 7px; border-bottom: 2px solid var(--doc-accent); }
+.invoice-print-page.document-template-corporate .a4-footer {
+  height: 56px;
+  bottom: 0;
+  padding: 9px 64px 22px;
+  border-top: 1px solid var(--doc-border);
+  color: var(--doc-text);
+  background: var(--doc-surface);
+}
+.invoice-print-page.document-template-corporate .a4-footer::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 15px;
+  background: var(--doc-accent);
+}
+.invoice-print-page.document-template-corporate .a4-footer-contact { color: var(--doc-muted); }
+
+/* Soft editorial: the page itself is the canvas, with no rounded inner frame. */
+.invoice-print-page.document-template-soft .a4-page-body {
+  padding: 0 0 42px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.invoice-print-page.document-template-soft .a4-summary-grid { grid-template-columns: minmax(0, 1fr) 270px; gap: 42px; }
+.invoice-print-page.document-template-soft .a4-invoice-total-due { padding-top: 6px; }
+.invoice-print-page.document-template-soft .a4-invoice-total-due strong { padding-bottom: 7px; border-bottom: 1px solid var(--doc-accent); }
+.invoice-print-page.document-template-soft .a4-footer { left: 64px; right: 64px; }
+
 /* Modals */
 .business-modal-backdrop {
   position: fixed;

@@ -155,6 +155,12 @@ function TotalsBlock({ document }: { document: BusinessDocument }) {
   return (
     <div className="a4-summary-grid">
       <div className="a4-payment-and-notes">
+        {document.kind === 'invoice' && (
+          <section className="a4-invoice-total-due">
+            <span>{document.kind === 'invoice' ? 'Total due' : 'Nilai penawaran'}</span>
+            <strong>{formatCurrency(totals.grandTotal, document.currency)}</strong>
+          </section>
+        )}
         {(document.payment.bankName || document.payment.accountNumber || document.payment.instructions) && (
           <section>
             <span className="a4-overline">{document.payment.title || 'Informasi pembayaran'}</span>
@@ -208,7 +214,7 @@ function InvoicePreview({ document }: { document: BusinessDocument }) {
         >
           <div className="a4-page-body">
             <PageHeader document={document} continuation={index > 0} />
-            {index === 0 && <><RecipientBlock document={document} /><GrandTotalHero document={document} /></>}
+            {index === 0 && <RecipientBlock document={document} />}
             <ItemsTable document={document} items={items} continued={index > 0} />
             {index === itemPages.length - 1 && <TotalsBlock document={document} />}
           </div>
