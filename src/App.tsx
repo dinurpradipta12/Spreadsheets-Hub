@@ -92,6 +92,14 @@ function getWorkspacePlanLabel(workspace: Workspace): 'Trial' | 'Paid' | 'Free' 
   return workspace.has_paid ? 'Paid' : 'Free';
 }
 
+function mergeWorkspaceStatus(current: Workspace | null, incoming: Partial<Workspace>): Workspace | null {
+  if (!current) return current;
+  const next = { ...current, ...incoming };
+  const changed = (Object.keys(incoming) as Array<keyof Workspace>)
+    .some((key) => current[key] !== next[key]);
+  return changed ? next : current;
+}
+
 function getWorkspaceSlug(): string | null {
   try {
     // 1. Cek parameter URL ?w=slug terlebih dahulu
@@ -2604,7 +2612,7 @@ export default function App() {
       .maybeSingle();
     if (statusError || !data) return;
     setWorkspace((current) => current && current.id === workspace.id
-      ? { ...current, ...(data as Workspace) }
+      ? mergeWorkspaceStatus(current, data as Partial<Workspace>)
       : current);
   }, [workspace?.id]);
 
@@ -2625,7 +2633,7 @@ export default function App() {
           if (payload.eventType === 'DELETE') return;
           const updated = payload.new as Partial<Workspace>;
           setWorkspace((current) => current && current.id === workspace.id
-            ? { ...current, ...updated }
+            ? mergeWorkspaceStatus(current, updated)
             : current);
         },
       )
